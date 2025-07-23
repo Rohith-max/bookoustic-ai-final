@@ -10,7 +10,11 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import CategorySelector from "./category-selector"
-import BookReader, { renderBookPage } from "./book-reader"
+import dynamic from "next/dynamic";
+const BookReader = dynamic(() => import("@/components/book-reader").then(mod => ({ default: mod.BookReader })), {
+  loading: () => <div className="text-center py-12 text-amber-700 dark:text-amber-200 font-serif">Loading book preview...</div>,
+  ssr: false,
+});
 import { generateBook } from "@/app/actions/generate-book"
 import { generatePDF } from "@/lib/pdf-generator"
 import { useToast } from "@/hooks/use-toast"
@@ -18,50 +22,179 @@ import { Progress } from "@/components/ui/progress"
 import { useUser, useAuth } from '@clerk/nextjs';
 import { getSupabaseClient } from '@/lib/supabase';
 
+const DEBUG = true; // Set to true to enable verbose logging
+
+function logDebug(...args: any[]) {
+  if (DEBUG) {
+    console.log('[Bookoustic Debug]', ...args);
+  }
+}
+
+function logError(...args: any[]) {
+  console.error('[Bookoustic Error]', ...args);
+}
+
 function BookHistory({ onSelectBook }: { onSelectBook: (book: any) => void }) {
   const { user } = useUser();
   const { getToken } = useAuth();
   const [books, setBooks] = useState<any[]>([]);
-  const [debugInfo, setDebugInfo] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
-    if (!user) return;
     async function fetchBooks() {
-      const token = (await getToken({ template: 'supabase' }).catch(() => undefined)) || (await getToken().catch(() => undefined)) || undefined;
-      if (!token || !user) return;
+      if (!user) return;
+      setLoading(true);
+      setError(null);
+      try {
+        logDebug('Fetching books for user:', user.id);
+        
+        // Get auth token
+        const token = await getToken({ template: 'supabase' })
+          .catch(() => getToken())
+          .catch(() => null);
+          
+        if (!token) {
+          throw new Error("Failed to get authentication token");
+        }
+        
+        // Initialize Supabase client with token
       const supabase = getSupabaseClient(token);
-      const debug: any = { user, userId: user.id, userIdType: typeof user.id };
-      const { data, error } = await supabase
-        .from('book_generations')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(5);
-      debug.supabaseResponse = { data, error };
-      setDebugInfo(debug);
-      setBooks(data || []);
+        
+        // Fetch books from Supabase
+        logDebug('Executing Supabase query');
+        const { data, error: fetchError } = await supabase
+          .from("book_generations")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false });
+        
+        if (fetchError) {
+          logError('Supabase query error:', fetchError);
+          throw fetchError;
+        }
+        
+        logDebug('Books from Supabase:', data);
+        
+        if (!data || data.length === 0) {
+          logDebug('No books found in database');
+          setBooks([]);
+          return;
+        }
+        
+        // Process the books to ensure they have the right structure
+        logDebug('Processing book data');
+        const processedBooks = data.map(book => {
+          // Check if book_data exists and is valid
+          let bookData = null;
+          
+          if (book.book_data && typeof book.book_data === 'object') {
+            bookData = book.book_data;
+            logDebug('Found book_data object:', book.id);
+          } else if (book.content && typeof book.content === 'object') {
+            bookData = book.content;
+            logDebug('Found content object:', book.id);
+          } else if (typeof book.book_data === 'string') {
+            try {
+              bookData = JSON.parse(book.book_data);
+              logDebug('Parsed book_data string:', book.id);
+            } catch (e) {
+              logError('Failed to parse book_data string:', e, book.id);
+            }
+          } else {
+            logDebug('No valid book data found, using book record:', book.id);
+          }
+          
+          // If we couldn't get valid book data, use the book record itself
+          if (!bookData) {
+            bookData = book;
+          }
+          
+          return {
+            id: book.id,
+            title: book.book_title || bookData.title || "Untitled Book",
+            author: bookData.author || "Unknown Author",
+            category: bookData.category || "Unknown Category",
+            created_at: book.created_at,
+            data: bookData
+          };
+        });
+        
+        logDebug('Processed books:', processedBooks.length);
+        setBooks(processedBooks);
+      } catch (err: any) {
+        logError('Error fetching books:', err);
+        setError(`Failed to load books: ${err.message}`);
+        toast({
+          title: "Library Error",
+          description: "Could not load your books. Please try again later.",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
     }
+    
     fetchBooks();
-  }, [user]);
+  }, [user, getToken, toast]);
+
+  if (!user) return (
+    <div className="text-center py-8 text-amber-700 dark:text-amber-200 font-serif">
+      Sign in to view your library.
+    </div>
+  );
+  
+  if (loading) return (
+    <div className="text-center py-8 text-amber-700 dark:text-amber-200 font-serif">
+      <div className="flex justify-center mb-4">
+        <Loader2 className="h-8 w-8 animate-spin text-amber-600" />
+      </div>
+      Loading your books...
+    </div>
+  );
+  
+  if (error) return (
+    <div className="text-center py-8 text-red-600 font-serif">
+      {error}
+      <Button 
+        variant="outline" 
+        className="mt-4 mx-auto block"
+        onClick={() => window.location.reload()}
+      >
+        Retry
+      </Button>
+    </div>
+  );
+  
+  if (books.length === 0) return (
+    <div className="text-center py-8 text-amber-700 dark:text-amber-200 font-serif">
+      No books found in your library.
+    </div>
+  );
 
   return (
-    <div>
-      <h2 className="text-xl font-bold mb-4">Your Recent Books</h2>
-      {/* DEBUG INFO REMOVED */}
-      <ul>
-        {books.map(book => (
-          <li key={book.id} className="mb-2">
-            <span className="font-serif">{book.book_title}</span>
-            <button
-              className="ml-4 px-2 py-1 bg-amber-800 text-amber-50 rounded"
-              onClick={() => onSelectBook(book.book_data)}
-            >
-              View
-            </button>
-            <span className="ml-2 text-xs text-gray-500">{new Date(book.created_at).toLocaleString()}</span>
-          </li>
-        ))}
-      </ul>
+    <div className="space-y-4">
+      {books.map((book) => (
+        <div 
+          key={book.id} 
+          className="p-4 border rounded-lg cursor-pointer hover:bg-amber-50 dark:hover:bg-amber-900/20"
+          onClick={() => {
+            console.log("Selected book:", book);
+            onSelectBook(book.data);
+          }}
+        >
+          <div className="font-bold text-lg text-amber-900 dark:text-amber-100">
+            {book.title}
+          </div>
+          <div className="text-sm text-amber-700 dark:text-amber-300">
+            {book.author} &middot; {book.category}
+          </div>
+          <div className="text-xs text-amber-500 dark:text-amber-400">
+            {new Date(book.created_at).toLocaleString()}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -77,6 +210,7 @@ export default function BookousticInterface() {
   const [error, setError] = useState<string | null>(null)
   const { toast } = useToast()
   const [chapterProgress, setChapterProgress] = useState(0)
+  const [pageContent, setPageContent] = useState<any[]>([])
   const { user } = useUser();
   const { getToken } = useAuth();
 
@@ -133,27 +267,76 @@ export default function BookousticInterface() {
   // Save book to Supabase after generation
   useEffect(() => {
     async function saveBookToSupabase(book: any) {
-      if (!user || !book) return;
-      const token = (await getToken({ template: 'supabase' }).catch(() => undefined)) || (await getToken().catch(() => undefined)) || undefined;
-      if (!token || !user) return;
-      const supabase = getSupabaseClient(token);
-      const { error, data } = await supabase.from('book_generations').insert([
-        {
-          user_id: user.id,
-          book_title: book.title,
-          book_data: book,
+      if (!user || !book) {
+        logDebug('Not saving book - missing user or book data');
+        return;
+      }
+      
+      logDebug("Saving book to Supabase:", {
+        title: book.title,
+        author: book.author,
+        category: book.category,
+        hasChapters: !!book.chapters,
+        chapterCount: book.chapters?.length
+      });
+      
+      try {
+        // Get auth token
+        const token = await getToken({ template: 'supabase' })
+          .catch(() => getToken())
+          .catch(() => null);
+          
+        if (!token) {
+          logError("Failed to get authentication token for Supabase");
+          return;
         }
-      ]);
-      if (error) {
-        console.error("Supabase insert error:", error);
-      } else {
-        console.log("Supabase insert success:", data);
+        
+        // Initialize Supabase client with token
+      const supabase = getSupabaseClient(token);
+        
+        // Make sure book data is properly formatted
+        const bookToSave = {
+          user_id: user.id,
+          book_title: book.title || "Untitled Book",
+          book_data: book,
+          created_at: new Date().toISOString()
+        };
+        
+        logDebug("Saving book to Supabase with structure:", bookToSave);
+        
+        // Insert the book into Supabase
+        const { error, data } = await supabase
+          .from('book_generations')
+          .insert([bookToSave]);
+          
+        if (error) {
+          logError("Supabase insert error:", error);
+          toast({
+            title: "Library Save Failed",
+            description: "Could not save book to your library. It will still be available in your current session.",
+            variant: "destructive",
+          });
+        } else {
+          logDebug("Book successfully saved to Supabase:", data);
+          toast({
+            title: "Book Saved",
+            description: "Your book has been saved to your library.",
+          });
+        }
+      } catch (err: any) {
+        logError("Error saving book to Supabase:", err);
+        toast({
+          title: "Save Error",
+          description: `Could not save to library: ${err.message || "Unknown error"}`,
+          variant: "destructive",
+        });
       }
     }
+    
     if (bookContent && user) {
       saveBookToSupabase(bookContent);
     }
-  }, [bookContent, user]);
+  }, [bookContent, user, getToken, toast]);
 
   // Optionally, clear storage on reset (add a function if needed)
 
@@ -165,15 +348,21 @@ export default function BookousticInterface() {
     setError(null)
 
     try {
+      logDebug('Generating book:', { prompt, category, bookSize });
       const content = await generateBook(prompt, category, bookSize)
 
       if (content.error) {
+        logError('Book generation API error:', content.error);
         throw new Error(content.error)
       }
 
+      logDebug('Book generated successfully:', { 
+        title: content.title, 
+        chapters: content.chapters?.length || 0 
+      });
       setBookContent(content)
     } catch (error: any) {
-      console.error("Error generating book:", error)
+      logError("Error generating book:", error)
       setError(`Failed to generate book: ${error.message || "Please try again."}`)
       setActiveTab("prompt")
     } finally {
@@ -186,23 +375,18 @@ export default function BookousticInterface() {
 
     setIsDownloading(true)
     try {
-      // Show a toast notification that PDF generation is starting
       toast({
         title: "Preparing PDF",
         description: "Generating PDF of the complete book. This may take a moment...",
       })
-
-      // Generate PDF of all pages using our new approach
-      const pdfDataUri = await generatePDF(bookContent, category, renderBookPage)
-
-      // Create a download link
+      // Use the paginated pageContent for WYSIWYG export
+      const pdfDataUri = await generatePDF(bookContent, category, undefined, pageContent)
       const link = document.createElement("a")
       link.href = pdfDataUri
       link.download = `${bookContent.title.replace(/[^a-z0-9]/gi, "_").toLowerCase()}.pdf`
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
-
       toast({
         title: "PDF Downloaded",
         description: "Your complete book has been downloaded successfully.",
@@ -344,7 +528,13 @@ export default function BookousticInterface() {
                   <p>{error}</p>
                 </div>
               ) : (
-                <BookReader book={bookContent} isLoading={isGenerating} category={category} />
+                <BookReader 
+                  book={bookContent} 
+                  isLoading={isGenerating} 
+                  category={category} 
+                  setPageContent={setPageContent} 
+                  onClose={() => setActiveTab("prompt")}
+                />
               )}
             </CardContent>
 
@@ -352,27 +542,9 @@ export default function BookousticInterface() {
               <Button
                 variant="outline"
                 onClick={() => setActiveTab("prompt")}
-                className="border-amber-800/30 dark:border-amber-800/30 text-amber-900 dark:text-amber-200 font-serif hover:bg-amber-800/10"
+                className="mx-auto border-amber-800/30 dark:border-amber-800/30 text-amber-900 dark:text-amber-200 font-serif hover:bg-amber-800/10"
               >
                 Back to Prompt
-              </Button>
-
-              <Button
-                disabled={!bookContent || isGenerating || isDownloading}
-                onClick={handleDownloadPDF}
-                className="flex items-center bg-amber-800 hover:bg-amber-900 text-amber-50 font-serif"
-              >
-                {isDownloading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Preparing PDF...
-                  </>
-                ) : (
-                  <>
-                    <Download className="mr-2 h-4 w-4" />
-                    Download Complete Book
-                  </>
-                )}
               </Button>
             </CardFooter>
           </TabsContent>
