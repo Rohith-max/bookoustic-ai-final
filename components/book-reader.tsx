@@ -1,583 +1,1054 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
-import { ChevronLeft, ChevronRight, Loader2, AlertTriangle, Download, BookOpenIcon, Bookmark } from "lucide-react"
+import { useState, useEffect, useRef } from "react"
+import { ChevronLeft, ChevronRight, Download, Plus, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { getFontForCategory, getThemeForCategory } from "@/lib/book-fonts"
-import BookCover from "./book-cover"
-import BackCover from "./back-cover"
-import TitlePage from "./title-page"
-import TableOfContents from "./table-of-contents"
-import { Slider } from "@/components/ui/slider"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Progress } from "@/components/ui/progress"
+import dynamic from "next/dynamic"
 import { generatePDF } from "@/lib/pdf-generator"
 import { useToast } from "@/hooks/use-toast"
+import { getSupabaseClient } from "@/lib/supabase"
+import { useUser, useAuth } from "@clerk/nextjs"
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
-interface BookDisplayProps {
-  content: string | null
-  isLoading: boolean
-  prompt: string
-  category: string
-}
+// Dynamically import components with loading states
+const BookCover = dynamic(() => import("./book-cover"), {
+  loading: () => <div className="text-center py-12">Loading cover...</div>,
+  ssr: false,
+})
+const BackCover = dynamic(() => import("./back-cover"), {
+  loading: () => <div className="text-center py-12">Loading back cover...</div>,
+  ssr: false,
+})
+const TitlePage = dynamic(() => import("./title-page"), {
+  loading: () => <div className="text-center py-12">Loading title page...</div>,
+  ssr: false,
+})
+const TableOfContents = dynamic(() => import("./table-of-contents"), {
+  loading: () => <div className="text-center py-12">Loading table of contents...</div>,
+  ssr: false,
+})
 
 interface BookReaderProps {
   book: any
   isLoading: boolean
   category: string
+  setPageContent?: (pages: any[]) => void
+  onClose: () => void;
 }
 
-// Utility to split HTML content into pages by rendered height
-function paginateByHeight(paragraphs: string[], pageHeightPx: number, font: any, theme: any, chapterTitle?: string) {
-  if (typeof window === "undefined") return [];
-  const tempDiv = document.createElement("div");
-  tempDiv.style.position = "absolute";
-  tempDiv.style.visibility = "hidden";
-  tempDiv.style.width = "700px"; // match .book-page width
-  tempDiv.style.fontFamily = `"${font.body}", serif`;
-  tempDiv.style.fontSize = "1.05rem";
-  tempDiv.style.lineHeight = "1.8";
-  tempDiv.style.padding = "2.5rem";
-  tempDiv.style.background = theme.contentPage?.backgroundColor || "#fff";
-  document.body.appendChild(tempDiv);
+// Constants for page dimensions and limits
+const PREVIEW_PAGE_WIDTH = 400
+const PREVIEW_PAGE_HEIGHT = 600
+const MAX_WORDS_PER_PAGE = 200
+const MAX_PAGES = 1000
 
+// Process chapters in chunks to avoid blocking
+async function processChaptersInChunks(
+  chapters: any[],
+  onProgress: (progress: number) => void
+): Promise<any[]> {
   const pages: any[] = [];
-  let currentPageContent = "";
-  let isFirstPage = true;
-  let pageCount = 0;
-  let i = 0;
-  while (i < paragraphs.length) {
-    let testContent = currentPageContent;
-    // Do NOT inject chapter title as HTML
-    testContent += paragraphs[i];
-    tempDiv.innerHTML = testContent;
-    if (tempDiv.scrollHeight > pageHeightPx && currentPageContent !== "") {
-      pages.push({
-        type: "chapter",
-        content: currentPageContent,
-        chapterTitle: isFirstPage ? chapterTitle : "",
-        chapterIndex: undefined, // will be set by caller
-        pageNumber: pageCount + 1,
-      });
-      currentPageContent = "";
-      isFirstPage = false;
-      pageCount++;
-      // do not increment i
-    } else {
-      currentPageContent = testContent;
-      i++;
+  let processedChapters = 0;
+
+  // Validate chapters array
+  if (!Array.isArray(chapters) || chapters.length === 0) {
+    console.error("Invalid chapters data:", chapters);
+    return pages;
+  }
+
+  // Add front matter
+  pages.push({ type: 'cover' });
+  pages.push({ type: 'title' });
+  pages.push({ type: 'toc' });
+
+  try {
+    for (let i = 0; i < chapters.length; i++) {
+      const chapter = chapters[i];
+      
+      // Skip invalid chapters
+      if (!chapter || !chapter.content) {
+        console.warn(`Skipping invalid chapter at index ${i}:`, chapter);
+        continue;
+      }
+
+      // Split content into pages with max words per page
+      const chapterText = chapter.content;
+      // Split by paragraphs - preserve all paragraph breaks
+      const paragraphs = chapterText.split(/\n{2,}/).map((p: string) => p.trim()).filter((p: string) => p);
+      
+      // Skip if no paragraphs
+      if (paragraphs.length === 0) {
+        console.warn(`Chapter ${i} has no paragraphs:`, chapter);
+        continue;
+      }
+      
+      let currentPageContent: string[] = [];
+      let wordCount = 0;
+      let pageCount = 0;
+      
+      // Use a more conservative word limit to ensure content doesn't overflow into footer
+      // Reduce by 20% to leave space for the footer and prevent cutoffs
+      const adjustedWordLimit = Math.floor(MAX_WORDS_PER_PAGE * 0.8);
+      
+      // Process each paragraph - keep paragraphs intact to avoid cutting mid-paragraph
+      for (let paraIndex = 0; paraIndex < paragraphs.length; paraIndex++) {
+        const para = paragraphs[paraIndex];
+        const paraWordCount = para.split(/\s+/).length;
+        
+        // If this paragraph would exceed the page limit
+        if (wordCount + paraWordCount > adjustedWordLimit) {
+          // If the page is empty but paragraph is very long, we need to split the paragraph
+          if (currentPageContent.length === 0 && paraWordCount > adjustedWordLimit) {
+            // Split the paragraph into sentences
+            const sentences = para.match(/[^.!?]+[.!?]+/g) || [para];
+            let currentSentences: string[] = [];
+            let sentenceWordCount = 0;
+            
+            // Process each sentence
+            for (const sentence of sentences) {
+              const sentenceWords = sentence.trim().split(/\s+/).length;
+              
+              if (sentenceWordCount + sentenceWords > adjustedWordLimit) {
+                // Add current sentences to page and start a new page
+                if (currentSentences.length > 0) {
+                  pages.push({
+                    type: 'chapter',
+                    content: pageCount === 0 ? currentSentences.join(' ') : currentSentences.join(' '),
+                    chapterTitle: pageCount === 0 ? chapter.title : '',
+                    chapterIndex: i,
+                    pageNumber: pages.length + 1,
+                    continuesInNextPage: true
+                  });
+                  
+                  currentSentences = [sentence];
+                  sentenceWordCount = sentenceWords;
+                  pageCount++;
+                } else {
+                  // If a single sentence is too long, we have to include it anyway
+                  currentSentences.push(sentence);
+                  pages.push({
+                    type: 'chapter',
+                    content: currentSentences.join(' '),
+                    chapterTitle: pageCount === 0 ? chapter.title : '',
+                    chapterIndex: i,
+                    pageNumber: pages.length + 1,
+                    continuesInNextPage: true
+                  });
+                  
+                  currentSentences = [];
+                  sentenceWordCount = 0;
+                  pageCount++;
+                }
+              } else {
+                currentSentences.push(sentence);
+                sentenceWordCount += sentenceWords;
+              }
+            }
+            
+            // Add any remaining sentences
+            if (currentSentences.length > 0) {
+              currentPageContent = [currentSentences.join(' ')];
+              wordCount = sentenceWordCount;
+            } else {
+              currentPageContent = [];
+              wordCount = 0;
+            }
+          } else {
+            // Normal case: Add current page content and start a new page
+            pages.push({
+              type: 'chapter',
+              content: currentPageContent.join('\n\n'),
+              chapterTitle: pageCount === 0 ? chapter.title : '',
+              chapterIndex: i,
+              pageNumber: pages.length + 1,
+              // If there are more paragraphs, mark as continuing
+              continuesInNextPage: paraIndex < paragraphs.length - 1
+            });
+            
+            // Start new page with this paragraph
+            currentPageContent = [para];
+            wordCount = paraWordCount;
+            pageCount++;
+          }
+        } else {
+          // Add paragraph to current page
+          currentPageContent.push(para);
+          wordCount += paraWordCount;
+        }
+      }
+      
+      // Add final page if there's content left
+      if (currentPageContent.length > 0) {
+        pages.push({
+          type: 'chapter',
+          content: currentPageContent.join('\n\n'),
+          chapterTitle: pageCount === 0 ? chapter.title : '',
+          chapterIndex: i,
+          pageNumber: pages.length + 1,
+          continuesInNextPage: false // Last page of chapter
+        });
+      }
+
+      processedChapters++;
+      onProgress(Math.round((processedChapters / chapters.length) * 100));
+
+      if (pages.length >= MAX_PAGES) {
+        break;
+      }
     }
+  } catch (err) {
+    console.error('Error in processChaptersInChunks:', err);
+    throw err;
   }
-  // Push last page
-  if (currentPageContent.trim() !== "") {
-    pages.push({
-      type: "chapter",
-      content: currentPageContent,
-      chapterTitle: isFirstPage ? chapterTitle : "",
-      chapterIndex: undefined, // will be set by caller
-      pageNumber: pageCount + 1,
-    });
-  }
-  document.body.removeChild(tempDiv);
+
+  pages.push({ type: 'backcover' });
   return pages;
 }
 
-export default function BookReader({ book, isLoading, category }: BookReaderProps) {
-  const [currentPage, setCurrentPage] = useState(0)
-  const [pageContent, setPageContent] = useState<any[]>([])
-  const [totalPages, setTotalPages] = useState(0)
-  const [isFlipping, setIsFlipping] = useState(false)
-  const [flipDirection, setFlipDirection] = useState<"next" | "prev">("next")
-  const [pdfProgress, setPdfProgress] = useState(0)
-  const [isDownloading, setIsDownloading] = useState(false)
-  const bookContainerRef = useRef<HTMLDivElement>(null)
-  const font = getFontForCategory(category)
-  const theme = getThemeForCategory(category)
-  const { toast } = useToast()
-
-  // Set up progress callback for PDF generation
+export function BookReader({
+  book,
+  category = "Fiction",
+  isLoading,
+  onClose,
+}: BookReaderProps) {
+  const [pages, setPages] = useState<any[]>([]);
+  const [pageIndex, setPageIndex] = useState(0);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [processingProgress, setProcessingProgress] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [pdfProgress, setPdfProgress] = useState(0);
+  const [showAddToLibraryDialog, setShowAddToLibraryDialog] = useState(false);
+  const [showRemoveFromLibraryDialog, setShowRemoveFromLibraryDialog] = useState(false);
+  const [isSavingToLibrary, setIsSavingToLibrary] = useState(false);
+  const [isRemovingFromLibrary, setIsRemovingFromLibrary] = useState(false);
+  const [bookData, setBookData] = useState<any>(null);
+  const bookContainerRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
+  const { user } = useUser();
+  const { getToken } = useAuth();
+  
+  // Initialize book data with ID preserved if it exists
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      ;(window as any).pdfGenerationProgress = setPdfProgress
+    if (book) {
+      // If the book has an id property, it's from the library
+      // We need to preserve the id for deletion
+      const bookWithId = book.id ? { ...book, _libraryId: book.id } : book;
+      setBookData(bookWithId);
+    } else {
+      // Set a default empty book structure instead of null
+      setBookData({
+        title: "Untitled Book",
+        chapters: [],
+        author: "Bookoustic AI"
+      });
     }
+  }, [book]);
+  
+  // Process book function
+  const processBook = async () => {
+    if (!bookData || !bookData.chapters || isProcessing) return;
 
-    return () => {
-      if (typeof window !== "undefined") {
-        ;(window as any).pdfGenerationProgress = null
+    try {
+      setIsProcessing(true);
+      setError(null);
+      
+      console.log("Processing book:", { 
+        title: bookData.title,
+        chaptersLength: bookData.chapters?.length || 0,
+        firstChapter: bookData.chapters?.[0]
+      });
+
+      const processedPages = await processChaptersInChunks(bookData.chapters, (progress) => {
+        setProcessingProgress(progress);
+      });
+
+      console.log("Processed pages:", processedPages.length);
+      
+      if (processedPages.length === 0) {
+        setError("No pages could be processed from this book.");
+        setIsProcessing(false);
+        return;
       }
-    }
-  }, [])
 
-  // Load current page from localStorage on mount (per book)
-  useEffect(() => {
-    if (typeof window !== "undefined" && book && book.title) {
-      const key = `bookoustic_current_page_${book.title}`
-      const savedPage = localStorage.getItem(key)
-      if (savedPage) {
-        setCurrentPage(Number(savedPage))
+      setPages(processedPages);
+      setPageIndex(0);
+    } catch (err: any) {
+      console.error('Error processing book:', err);
+      setError(`Failed to process book: ${err.message || 'Unknown error'}`);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Save book to library
+  const saveBookToLibrary = async () => {
+    if (!bookData || !user) return;
+    
+    try {
+      setIsSavingToLibrary(true);
+      
+      const token = (await getToken({ template: 'supabase' }).catch(() => undefined)) || 
+                    (await getToken().catch(() => undefined)) || 
+                    undefined;
+      
+      if (!token) {
+        toast({
+          variant: "destructive",
+          title: "Authentication Error",
+          description: "Failed to authenticate with Supabase.",
+        });
+        setIsSavingToLibrary(false);
+        return;
       }
+      
+      const supabase = getSupabaseClient(token);
+      
+      // Check if this book already exists in the library to avoid duplicates
+      const { data: existingBooks, error: checkError } = await supabase
+        .from("book_generations")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("book_title", bookData.title)
+        .limit(1);
+        
+      if (checkError) {
+        console.log("Error checking for existing book:", checkError);
+        // Continue with insert attempt even if check fails
+      } else if (existingBooks && existingBooks.length > 0) {
+        toast({
+          title: "Book Already Exists",
+          description: "This book is already in your library.",
+        });
+        setIsSavingToLibrary(false);
+        return;
+      }
+      
+      // Extract cover data from the book
+      let coverImageUrl = null;
+      
+      // First check if the book already has a cover image in the book data
+      if (bookData.coverImageUrl) {
+        coverImageUrl = bookData.coverImageUrl;
+      } else {
+        // If no existing cover image, try to create one from the DOM
+        try {
+          // Find the cover element in the DOM using the specific capture class
+          const coverElement = document.querySelector('.book-cover-capture');
+          
+          if (coverElement) {
+            try {
+              // Use html2canvas to capture the cover as an image
+              const html2canvas = (await import('html2canvas')).default;
+              const canvas = await html2canvas(coverElement as HTMLElement, {
+                scale: 1,
+                useCORS: true,
+                allowTaint: true,
+                backgroundColor: null,
+              });
+              
+              // Convert canvas to data URL instead of blob for simplicity
+              const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+              
+              // Store the data URL directly in the book data
+              // This avoids storage bucket permission issues
+              coverImageUrl = dataUrl;
+            } catch (renderError) {
+              console.error("Error rendering cover:", renderError);
+            }
+          }
+        } catch (coverError) {
+          console.error("Error capturing cover:", coverError);
+        }
+      }
+      
+      // Insert book data with cover image if available
+      const { data, error } = await supabase
+        .from("book_generations")
+        .insert([
+          {
+            user_id: user.id,
+            book_title: bookData.title,
+            book_data: bookData,
+            cover_image_url: coverImageUrl,
+          },
+        ]);
+        
+      if (error) {
+        console.log("Supabase insert error:", error);
+        toast({
+          variant: "destructive",
+          title: "Failed to Save",
+          description: `Could not add book to your library: ${error.message || "Unknown error"}`,
+        });
+        return;
+      }
+      
+      toast({
+        title: "Book Saved",
+        description: "Book has been added to your library.",
+      });
+      
+    } catch (err: any) {
+      console.error("Error saving to library:", err);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: `Failed to save book to library: ${err.message || "Unknown error"}`,
+      });
+    } finally {
+      setIsSavingToLibrary(false);
+      setShowAddToLibraryDialog(false);
     }
-  }, [book && book.title])
+  };
 
-  // Save current page to localStorage when it changes
-  useEffect(() => {
-    if (typeof window !== "undefined" && book && book.title) {
-      const key = `bookoustic_current_page_${book.title}`
-      localStorage.setItem(key, String(currentPage))
+  // Remove book from library
+  const removeBookFromLibrary = async () => {
+    if (!bookData || !user || !bookData._libraryId) return;
+    
+    try {
+      setIsRemovingFromLibrary(true);
+      
+      const token = (await getToken({ template: 'supabase' }).catch(() => undefined)) || 
+                    (await getToken().catch(() => undefined)) || 
+                    undefined;
+      
+      if (!token) {
+        toast({
+          variant: "destructive",
+          title: "Authentication Error",
+          description: "Failed to authenticate with Supabase.",
+        });
+        return;
+      }
+      
+      const supabase = getSupabaseClient(token);
+      
+      // Delete the book from the database
+      const { error } = await supabase
+        .from("book_generations")
+        .delete()
+        .eq('id', bookData._libraryId);
+        
+      if (error) {
+        console.error("Supabase delete error:", error);
+        toast({
+          variant: "destructive",
+          title: "Failed to Remove",
+          description: "Could not remove book from your library.",
+        });
+        return;
+      }
+      
+      toast({
+        title: "Book Removed",
+        description: "Book has been removed from your library.",
+      });
+      
+      // Close the book reader after successful removal
+      if (onClose) {
+        onClose();
+      }
+      
+    } catch (err: any) {
+      console.error("Error removing from library:", err);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to remove book from library.",
+      });
+    } finally {
+      setIsRemovingFromLibrary(false);
+      setShowRemoveFromLibraryDialog(false);
     }
-  }, [currentPage, book && book.title])
+  };
 
-  // This function renders a single page based on its type
-  const renderPage = (page: any, pageCategory: string = category) => {
-    if (!page) return null
+  // Render page function
+  const renderPage = (page: any) => {
+    if (!page) return null;
+
+    const themeClass = getThemeForCategory(category);
+    const fontClass = getFontForCategory(category);
 
     switch (page.type) {
       case "cover":
-        return <BookCover book={page.content} category={pageCategory} />
+        return <BookCover book={bookData} category={category} />;
       case "title":
-        return <TitlePage book={page.content} category={pageCategory} />
+        return <TitlePage book={bookData} category={category} />;
       case "toc":
-        return (
-          <TableOfContents
-            book={page.content}
-            category={pageCategory}
-            onNavigate={(index) => {
-              // Find the page index for the selected chapter
-              const chapterPageIndex = pageContent.findIndex((p) => p.type === "chapter" && p.chapterIndex === index)
-              if (chapterPageIndex >= 0) {
-                jumpToPage(chapterPageIndex)
-              }
-            }}
-          />
-        )
+        return <TableOfContents 
+          book={bookData} 
+          category={category} 
+          onNavigate={(chapterIndex) => {
+            // Find the first page of the selected chapter
+            const chapterPageIndex = pages.findIndex(
+              p => p.type === 'chapter' && p.chapterIndex === chapterIndex && p.chapterTitle
+            );
+            if (chapterPageIndex !== -1) {
+              // Ensure we start at an even page for the spread
+              setPageIndex(Math.floor(chapterPageIndex / 2) * 2);
+            }
+          }} 
+        />;
+      case "backcover":
+        return <BackCover book={bookData} category={category} />;
       case "chapter":
         return (
-          <div
-            className={`book-page chapter-page ${isFlipping ? `page-flip-${flipDirection}` : ""}`}
-            style={{
-              ...theme.contentPage,
-              fontFamily: `"${font.body}", serif`,
-              padding: "2.5rem",
-              lineHeight: "1.8",
-            }}
-          >
-            {/* Chapter title at the top of the page */}
-            {page.chapterTitle && (
-              <h2
-                className="text-2xl md:text-3xl font-bold mb-8 text-center"
-                style={{
-                  fontFamily: `"${font.title}", serif`,
-                  fontWeight: font.titleWeight,
-                  color: theme.titleColor,
-                }}
-              >
-                {page.chapterTitle}
-              </h2>
-            )}
-
-            {/* Chapter header (for continuation pages) */}
-            {!page.chapterTitle && page.chapterIndex !== undefined && (
-              <div
-                className="chapter-header"
-                style={{
-                  color: theme.headerColor,
-                }}
-              >
-                {book.chapters[page.chapterIndex]?.title || `Chapter ${page.chapterIndex + 1}`}
+          <div className={`chapter-page ${themeClass} ${fontClass}`}>
+            <div className="p-8 h-full flex flex-col">
+              {page.chapterTitle && (
+                <h2 className="chapter-title">
+                  {page.chapterTitle}
+                </h2>
+              )}
+              <div className="chapter-content">
+                {page.content.split('\n\n').map((paragraph: string, idx: number) => (
+                  <p key={idx} className="mb-3 text-justify text-indent">{paragraph}</p>
+                ))}
               </div>
-            )}
-
-            {/* Chapter content */}
-            <div
-              dangerouslySetInnerHTML={{ __html: page.content }}
-              className="chapter-content"
-              style={{
-                color: theme.textColor,
-              }}
-            />
-            <div
-              className="page-number"
-              style={{
-                color: theme.pageNumberColor,
-              }}
-            >
-              {currentPage}
+              <div className="page-footer">
+                {page.pageNumber && (
+                  <span className="page-number">- {page.pageNumber} -</span>
+                )}
+              </div>
             </div>
-            {theme.decorativeElement && (
-              <div className="decorative-element" dangerouslySetInnerHTML={{ __html: theme.decorativeElement }} />
-            )}
           </div>
-        )
-      case "backcover":
-        return <BackCover book={page.content} category={pageCategory} />
+        );
       default:
-        return null
+        return <div>Unknown page type</div>;
     }
-  }
+  };
 
-  // Process book content into pages
-  useEffect(() => {
-    if (!book || isLoading) return;
-    setCurrentPage(0); // Reset to first page on book change
-    const pages: any[] = [];
-    pages.push({ type: "cover", content: book });
-    pages.push({ type: "title", content: book });
-    pages.push({ type: "toc", content: book });
-    const pageHeightPx = 700; // match .book-page min-height
-    if (book.chapters && Array.isArray(book.chapters)) {
-      book.chapters.forEach((chapter: any, chapterIndex: number) => {
-        if (!chapter.content || chapter.content.trim() === "") return;
-        const paragraphs = chapter.content.split("\n").filter((p: string) => p.trim() !== "").map(formatParagraph);
-        const chapterPages = paginateByHeight(paragraphs, pageHeightPx, font, theme, chapter.title).map((p, idx) => ({
-          ...p,
-          chapterIndex,
-          pageNumber: idx + 1,
-        }));
-        pages.push(...chapterPages);
-      });
-    }
-    pages.push({ type: "backcover", content: book });
-    setPageContent(pages);
-    setTotalPages(pages.length);
-  }, [book, isLoading]);
-
-  // Format paragraphs with enhanced typography
-  const formatParagraph = (paragraph: string): string => {
-    // Check if the paragraph is dialogue (starts with a quote or dash)
-    const isDialogue = /^[\"\'\"]|^—|^-/.test(paragraph.trim())
-
-    // Apply appropriate styling
-    if (isDialogue) {
-      return `<p class="dialogue">${paragraph}</p>`
-    } else if (paragraph.trim() === "***" || paragraph.trim() === "---" || paragraph.trim() === "* * *") {
-      return `<div class="section-break">⁂</div>` // Create decorative section break
-    } else {
-      return `<p>${paragraph}</p>`
-    }
-  }
-
-  // Navigation functions
-  const nextPage = () => {
-    if (currentPage < totalPages - 1) {
-      setFlipDirection("next")
-      setIsFlipping(true)
-      setTimeout(() => {
-        setCurrentPage((prev) => prev + 1)
-        setIsFlipping(false)
-      }, 300)
-    }
-  }
-
-  const prevPage = () => {
-    if (currentPage > 0) {
-      setFlipDirection("prev")
-      setIsFlipping(true)
-      setTimeout(() => {
-        setCurrentPage((prev) => prev - 1)
-        setIsFlipping(false)
-      }, 300)
-    }
-  }
-
-  const jumpToPage = (pageIndex: number) => {
-    if (pageIndex >= 0 && pageIndex < totalPages) {
-      setCurrentPage(pageIndex)
-    }
-  }
-
-  // PDF download
+  // PDF download function
   const handleDownloadPDF = async () => {
-    if (!book) return
+    if (!bookData) return;
 
     try {
-      setIsDownloading(true)
-      setPdfProgress(0)
+      setIsDownloading(true);
+      setPdfProgress(0);
 
-      // Show toast notification
       toast({
         title: "Creating PDF",
         description: "Generating your book as a PDF. This may take a moment...",
-      })
+        duration: 10000, // Longer toast duration
+      });
 
-      const pdfDataUri = await generatePDF(book, category, renderBookPage)
+      // Set up the progress callback function with error handling
+      if (typeof window !== 'undefined') {
+        (window as any).pdfGenerationProgress = (progress: number) => {
+          // Prevent progress from getting stuck at high values
+          if (progress <= 100) {
+            setPdfProgress(progress);
+          }
+          
+          // If progress is high but not complete, show additional feedback
+          if (progress >= 95 && progress < 100) {
+            toast({
+              title: "Almost done",
+              description: "Finalizing your PDF...",
+              duration: 5000,
+            });
+          }
+        };
+      }
 
-      const link = document.createElement("a")
-      link.href = pdfDataUri
-      link.download = `${book.title.replace(/[^a-z0-9]/gi, "_").toLowerCase()}.pdf`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
+      // Set a timeout to ensure the process doesn't hang indefinitely
+      const pdfTimeout = setTimeout(() => {
+        if (isDownloading) {
+          toast({
+            variant: "destructive",
+            title: "PDF Generation Taking Too Long",
+            description: "The process might be stuck. Try again with a smaller book.",
+          });
+          setIsDownloading(false);
+          setPdfProgress(0);
+          if (typeof window !== 'undefined') {
+            (window as any).pdfGenerationProgress = null;
+          }
+        }
+      }, 60000); // 1 minute timeout
+
+      const pdfDataUri = await generatePDF(bookData, category, renderPage, pages);
+      
+      // Clear the timeout since we succeeded
+      clearTimeout(pdfTimeout);
+      
+      setPdfProgress(100);
+
+      // Create a download link
+      const link = document.createElement("a");
+      link.href = pdfDataUri;
+      link.download = `${bookData.title.replace(/[^a-z0-9]/gi, "_").toLowerCase()}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
 
       toast({
         title: "PDF Ready",
         description: "Your book has been downloaded as a PDF.",
-      })
-    } catch (error) {
-      console.error("Error generating PDF:", error)
+      });
+    } catch (error: any) {
+      console.error("Error generating PDF:", error);
       toast({
         variant: "destructive",
         title: "PDF Generation Failed",
-        description: "There was an error creating your PDF. Please try again.",
-      })
+        description: `There was an error creating your PDF: ${error.message || "Unknown error"}. Please try again.`,
+      });
     } finally {
-      setIsDownloading(false)
-      setPdfProgress(0)
-    }
-  }
-
-  // Keyboard navigation for page turning
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if (isLoading) return;
-      if (e.key === "ArrowRight") {
-        setCurrentPage((prev) => Math.min(prev + 1, totalPages - 1));
-      } else if (e.key === "ArrowLeft") {
-        setCurrentPage((prev) => Math.max(prev - 1, 0));
+      setIsDownloading(false);
+      setTimeout(() => setPdfProgress(0), 1000);
+      // Clean up the progress callback
+      if (typeof window !== 'undefined') {
+        (window as any).pdfGenerationProgress = null;
       }
     }
-    window.addEventListener("keydown", handleKeyDown)
-    return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [isLoading, totalPages])
-
-  if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 space-y-6">
-        <Loader2 className="h-12 w-12 animate-spin text-amber-700 dark:text-amber-300 mb-4" />
-        <div className="text-center">
-          <p className="text-2xl font-serif text-amber-900 dark:text-amber-100 drop-shadow-md animate-pulse">Writing your book...</p>
-          <p className="text-amber-700 dark:text-amber-300 italic mt-2">Let the story unfold, page by page.</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (!book) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 space-y-4">
-        <div className="w-32 h-40 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/30 rounded shadow-md flex items-center justify-center">
-          <BookOpenIcon className="w-12 h-12 text-amber-300 dark:text-amber-700" />
-        </div>
-        <p className="text-center text-amber-900 dark:text-amber-200 font-serif">
-          Enter a prompt and click "Generate Book" to create your own book.
-        </p>
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-8">
-      {/* Book display with side navigation */}
-      <div className="relative w-full max-w-3xl mx-auto aspect-[1/1.4] border-amber-800/10 shadow-2xl flex items-center justify-center">
-        {/* Previous button (left side) */}
-        <Button
-          variant="outline"
-          onClick={prevPage}
-          disabled={currentPage === 0}
-          className="absolute left-0 top-1/2 -translate-y-1/2 px-3 py-1 h-auto border-amber-800/30 bg-amber-50/80 dark:bg-amber-950/30 hover:bg-amber-100 dark:hover:bg-amber-900/40 text-amber-900 dark:text-amber-200 z-10"
-          style={{ borderTopRightRadius: 0, borderBottomRightRadius: 0 }}
-          aria-label="Previous Page"
-        >
-          <ChevronLeft className="h-5 w-5 text-amber-700 dark:text-amber-500" />
-        </Button>
-        <div
-          ref={bookContainerRef}
-          className="book-container flex-1 w-full h-full flex items-center justify-center"
-        >
-          <div className={`book-content ${isFlipping ? `flipping-${flipDirection}` : ""}`} style={{ width: '100%' }}>
-            {pageContent.length > 0 && renderPage(pageContent[currentPage])}
-          </div>
-        </div>
-        {/* Next button (right side) */}
-        <Button
-          variant="outline"
-          onClick={nextPage}
-          disabled={currentPage === totalPages - 1}
-          className="absolute right-0 top-1/2 -translate-y-1/2 px-3 py-1 h-auto border-amber-800/30 bg-amber-50/80 dark:bg-amber-950/30 hover:bg-amber-100 dark:hover:bg-amber-900/40 text-amber-900 dark:text-amber-200 z-10"
-          style={{ borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }}
-          aria-label="Next Page"
-        >
-          <ChevronRight className="h-5 w-5 text-amber-700 dark:text-amber-500" />
-        </Button>
-      </div>
-      {/* Page indicator and slider below the book */}
-      <div className="flex flex-col items-center w-full max-w-2xl">
-        <div className="text-center text-sm mb-2 font-serif text-amber-800 dark:text-amber-300">
-          Page {currentPage + 1} of {totalPages}
-        </div>
-        <Slider
-          value={[currentPage]}
-          min={0}
-          max={totalPages - 1}
-          step={1}
-          onValueChange={(values) => jumpToPage(values[0])}
-          className="w-full"
-        />
-      </div>
-
-      {/* PDF Download button */}
-      <Button
-        onClick={handleDownloadPDF}
-        disabled={isDownloading}
-        className="flex items-center bg-amber-800 hover:bg-amber-900 text-amber-50 font-serif mb-6"
-      >
-        {isDownloading ? (
-          <>
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Creating PDF ({Math.round(pdfProgress)}%)
-          </>
-        ) : (
-          <>
-            <Download className="mr-2 h-4 w-4" />
-            Download as PDF
-          </>
-        )}
-      </Button>
-
-      {/* PDF Progress bar */}
-      {isDownloading && (
-        <div className="pdf-progress-container">
-          <div className="pdf-progress-bar">
-            <div className="pdf-progress-value" style={{ width: `${pdfProgress}%` }} />
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// PenOnPathSVG component (placed above BookReader)
-function PenOnPathSVG() {
-  // Animate the pen along the SVG flourish path with visually even speed
-  const penRef = useRef<HTMLDivElement>(null)
+  };
+  
+  // Process book when it changes
   useEffect(() => {
-    const path = document.getElementById('flourish-path') as SVGPathElement | null
-    if (!path || !penRef.current) return
-    // Sample the path at many points to get arc length parameterization
-    const N = 200
-    const points: {x: number, y: number, len: number}[] = []
-    let prev = path.getPointAtLength(0)
-    let totalLen = 0
-    points.push({x: prev.x, y: prev.y, len: 0})
-    for (let i = 1; i <= N; ++i) {
-      const l = (path.getTotalLength() * i) / N
-      const pt = path.getPointAtLength(l)
-      const dx = pt.x - prev.x, dy = pt.y - prev.y
-      totalLen += Math.sqrt(dx*dx + dy*dy)
-      points.push({x: pt.x, y: pt.y, len: totalLen})
-      prev = pt
+    if (bookData && bookData.chapters && bookData.chapters.length > 0) {
+      console.log("Book data received:", {
+        title: bookData.title,
+        chaptersCount: bookData.chapters.length,
+        hasChapters: Array.isArray(bookData.chapters) && bookData.chapters.length > 0,
+        firstChapter: bookData.chapters[0]
+      });
+      processBook();
+    } else if (bookData) {
+      // Only log an error if bookData exists but has no chapters
+      console.log("Book data missing chapters:", bookData);
+      setError("Book data is missing chapters. Please try again.");
     }
-    // Animate based on arc length
-    let start: number | null = null
-    const duration = 1800 // ms
-    function animatePen(ts: number) {
-      if (!penRef.current) return
-      if (start === null) start = ts
-      const elapsed = Math.min(ts - start, duration)
-      const progress = elapsed / duration
-      const targetLen = totalLen * progress
-      // Find the segment where targetLen falls
-      let idx = 0
-      while (idx < points.length-1 && points[idx+1].len < targetLen) idx++
-      const p0 = points[idx], p1 = points[Math.min(idx+1, points.length-1)]
-      const segLen = p1.len - p0.len
-      const segT = segLen === 0 ? 0 : (targetLen - p0.len) / segLen
-      const x = p0.x + (p1.x - p0.x) * segT
-      const y = p0.y + (p1.y - p0.y) * segT
-      penRef.current.style.left = `${x + 210 - 16}px`
-      penRef.current.style.top = `${y + 110 - 16}px`
-      penRef.current.style.opacity = '1'
-      if (elapsed < duration) {
-        requestAnimationFrame(animatePen)
-      } else {
-        penRef.current.style.opacity = '0.7'
+    // Don't log an error for null bookData as it's handled in the first useEffect
+  }, [bookData]);
+
+  // Handle keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle keyboard events if book is loaded
+      if (!pages.length) return;
+
+      switch (e.key) {
+        case 'ArrowLeft':
+          handlePrevPage();
+          break;
+        case 'ArrowRight':
+          handleNextPage();
+          break;
       }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [pageIndex, pages.length]);
+
+  const handleNextPage = () => {
+    if (pageIndex < pages.length - 2) {
+      setPageIndex(prev => prev + 2);
     }
-    penRef.current.style.opacity = '0'
-    requestAnimationFrame(animatePen)
-    return () => { start = null }
-  }, [])
-  return (
-    <div
-      ref={penRef}
-      style={{
-        position: 'absolute',
-        width: 32,
-        height: 32,
-        zIndex: 10,
-        left: 210 - 16,
-        top: 110 - 16,
-        opacity: 0,
-        transition: 'opacity 0.3s',
-        pointerEvents: 'none',
-      }}
-    >
-      {/* SVG Pen: barrel + gold band + nib */}
-      <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-        {/* Pen barrel */}
-        <rect x="13" y="2" width="6" height="18" rx="3" fill="#222" />
-        {/* Gold band */}
-        <rect x="13" y="16" width="6" height="3" rx="1.5" fill="#c4a86b" />
-        {/* Pen nib */}
-        <polygon points="16,20 13,30 19,30" fill="#c4a86b" stroke="#a88b4a" strokeWidth="1.2" />
-        <circle cx="16" cy="24" r="1.1" fill="#fffbe6" />
-      </svg>
-    </div>
-  )
-}
+  };
 
-// Export the renderPage function for PDF generation
-export function renderBookPage(page: any, category: string) {
-  const font = getFontForCategory(category)
-  const theme = getThemeForCategory(category)
+  const handlePrevPage = () => {
+    if (pageIndex > 0) {
+      setPageIndex(prev => prev - 2);
+    }
+  };
 
-  switch (page.type) {
-    case "cover":
-      return <BookCover book={page.content} category={category} />
-    case "title":
-      return <TitlePage book={page.content} category={category} />
-    case "toc":
-      return <TableOfContents book={page.content} category={category} onNavigate={() => {}} />
-    case "chapter":
+  // Render the book UI
+  const renderBookUI = () => {
+    if (isProcessing) {
       return (
-        <div
-          className="book-page chapter-page"
-          style={{
-            ...theme.contentPage,
-            fontFamily: `"${font.body}", serif`,
-            padding: "2rem",
-            lineHeight: "1.8",
-          }}
-        >
-          {/* Chapter title at the top of the page */}
-          {page.chapterTitle && (
-            <h2
-              className="text-2xl md:text-3xl font-bold mb-6 text-center"
-              style={{
-                fontFamily: `"${font.title}", serif`,
-                fontWeight: font.titleWeight,
-                color: theme.titleColor,
-              }}
-            >
-              {page.chapterTitle}
-            </h2>
-          )}
+        <div className="flex flex-col items-center justify-center h-full">
+          <div className="w-64 bg-gray-200 rounded-full h-2.5 mb-4">
+            <div 
+              className="bg-blue-600 h-2.5 rounded-full" 
+              style={{ width: `${processingProgress}%` }}
+            ></div>
+          </div>
+          <p className="text-center">Processing book... {processingProgress}%</p>
+        </div>
+      );
+    }
 
-          {/* Chapter content */}
-          <div
-            dangerouslySetInnerHTML={{ __html: page.content }}
-            className="chapter-content"
-            style={{
-              color: theme.textColor,
-            }}
-          />
-          {theme.decorativeElement && (
-            <div className="decorative-element" dangerouslySetInnerHTML={{ __html: theme.decorativeElement }} />
+    if (error) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full">
+          <p className="text-red-500 mb-4">{error}</p>
+          <Button 
+            onClick={() => processBook()}
+            variant="outline"
+          >
+            Try Again
+          </Button>
+        </div>
+      );
+    }
+
+    if (!bookData || !bookData.chapters) {
+      return (
+        <div className="flex items-center justify-center h-full">
+          <p className="text-amber-600">Invalid book data. Missing chapters.</p>
+        </div>
+      );
+    }
+
+    if (pages.length === 0) {
+      return (
+        <div className="flex items-center justify-center h-full">
+          <p className="text-amber-600">No pages available. The book may be empty or still processing.</p>
+        </div>
+      );
+    }
+
+    // Show cover as a single page first
+    if (pageIndex === 0) {
+      return (
+        <div className="book-view">
+          <div className="book-controls mb-4 flex justify-between items-center">
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setShowAddToLibraryDialog(true)}
+              >
+                <Plus className="h-4 w-4 mr-1" /> Add to Library
+              </Button>
+              
+              {/* Only show remove button if book has an ID (meaning it's from the library) */}
+              {bookData._libraryId && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setShowRemoveFromLibraryDialog(true)}
+                  className="text-red-500 hover:bg-red-50 hover:text-red-600"
+                >
+                  <Trash2 className="h-4 w-4 mr-1" /> Remove
+                </Button>
+              )}
+            </div>
+            
+            <div className="flex items-center">
+              <span className="mr-4">
+                Cover
+              </span>
+              
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleNextPage}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+            
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleDownloadPDF} 
+              disabled={isDownloading}
+            >
+              <Download className="h-4 w-4 mr-1" /> Download PDF
+            </Button>
+          </div>
+          
+          <div className="book-content flex justify-center">
+            <div style={{ width: PREVIEW_PAGE_WIDTH, height: PREVIEW_PAGE_HEIGHT }} className="book-page shadow-lg">
+              {renderPage(pages[0])}
+            </div>
+          </div>
+          
+          {/* PDF progress indicator at bottom */}
+          {isDownloading && (
+            <div className="pdf-progress-bar mt-4 p-4 bg-background/80 rounded-lg border border-border/50">
+              <div className="text-sm mb-2">Creating PDF... {pdfProgress}%</div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div 
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                  style={{ width: `${pdfProgress}%` }}
+                ></div>
+              </div>
+            </div>
           )}
         </div>
-      )
-    case "backcover":
-      return <BackCover book={page.content} category={category} />
-    default:
-      return null
+      );
+    }
+
+    // Two-page spread for all other pages
+    return (
+      <div className="book-view">
+        <div className="book-controls mb-4 flex justify-between items-center">
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setShowAddToLibraryDialog(true)}
+            >
+              <Plus className="h-4 w-4 mr-1" /> Add to Library
+            </Button>
+            
+            {/* Only show remove button if book has an ID (meaning it's from the library) */}
+            {bookData._libraryId && (
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setShowRemoveFromLibraryDialog(true)}
+                className="text-red-500 hover:bg-red-50 hover:text-red-600"
+              >
+                <Trash2 className="h-4 w-4 mr-1" /> Remove
+              </Button>
+            )}
+          </div>
+          
+          <div className="flex items-center">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handlePrevPage} 
+              disabled={pageIndex === 0}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            
+            <span className="mx-4">
+              Pages {pageIndex + 1}-{Math.min(pageIndex + 2, pages.length)}
+            </span>
+            
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleNextPage} 
+              disabled={pageIndex >= pages.length - 2}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+          
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleDownloadPDF} 
+            disabled={isDownloading}
+          >
+            <Download className="h-4 w-4 mr-1" /> Download PDF
+          </Button>
+        </div>
+        
+        <div className="book-content flex justify-center">
+          <div className="book-spread flex shadow-lg">
+            <div style={{ width: PREVIEW_PAGE_WIDTH, height: PREVIEW_PAGE_HEIGHT }} className="book-page left-page border-r">
+              {renderPage(pages[pageIndex])}
+            </div>
+            <div style={{ width: PREVIEW_PAGE_WIDTH, height: PREVIEW_PAGE_HEIGHT }} className="book-page right-page">
+              {pageIndex + 1 < pages.length && renderPage(pages[pageIndex + 1])}
+            </div>
+          </div>
+        </div>
+        
+        {/* PDF progress indicator at bottom */}
+        {isDownloading && (
+          <div className="pdf-progress-bar mt-4 p-4 bg-background/80 rounded-lg border border-border/50">
+            <div className="text-sm mb-2">Creating PDF... {pdfProgress}%</div>
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div 
+                className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                style={{ width: `${pdfProgress}%` }}
+              ></div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div 
+      ref={bookContainerRef}
+      className="book-reader-container bg-background/80 backdrop-blur-sm rounded-xl p-8 shadow-xl border border-border/50 max-w-4xl mx-auto"
+    >
+      {renderBookUI()}
+      
+      {/* Add to Library Dialog */}
+      <AlertDialog open={showAddToLibraryDialog} onOpenChange={setShowAddToLibraryDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Add to Library</AlertDialogTitle>
+            <AlertDialogDescription>
+              Would you like to add "{bookData?.title}" to your personal library?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={saveBookToLibrary}
+              disabled={isSavingToLibrary}
+            >
+              {isSavingToLibrary ? "Saving..." : "Add to Library"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      
+      {/* Remove from Library Dialog */}
+      <AlertDialog open={showRemoveFromLibraryDialog} onOpenChange={setShowRemoveFromLibraryDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove from Library</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to remove "{bookData?.title}" from your library? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={removeBookFromLibrary}
+              disabled={isRemovingFromLibrary}
+              className="bg-red-500 hover:bg-red-600"
+            >
+              {isRemovingFromLibrary ? "Removing..." : "Remove"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
+// Add professional book styles
+const bookStyles = `
+  .book-spread {
+    background: linear-gradient(to right, #f0f0f0, #ffffff, #f0f0f0);
+    border-radius: 4px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    position: relative;
   }
+  
+  .book-spread:after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: rgba(0, 0, 0, 0.06);
+    box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+    transform: translateX(-50%);
+  }
+  
+  .book-page {
+    background: #ffffff;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+  
+  .left-page {
+    border-top-left-radius: 4px;
+    border-bottom-left-radius: 4px;
+  }
+  
+  .right-page {
+    border-top-right-radius: 4px;
+    border-bottom-right-radius: 4px;
+  }
+  
+  .chapter-title {
+    font-size: 1.2rem;
+    font-weight: 600;
+    margin-bottom: 1.5rem;
+    font-family: 'Georgia', serif;
+    color: #333;
+    text-align: center;
+  }
+  
+  .chapter-content {
+    font-size: 0.85rem;
+    line-height: 1.5;
+    text-align: justify;
+    overflow: hidden;
+    font-family: 'Georgia', serif;
+    color: #333;
+    padding-bottom: 2.5rem; /* Extra padding to ensure space for footer */
+    flex: 1;
+  }
+  
+  .chapter-content p:last-child {
+    margin-bottom: 0;
+  }
+  
+  .text-indent {
+    text-indent: 1.5rem;
+  }
+  
+  .page-footer {
+    width: 100%;
+    text-align: center;
+    padding-top: 0.75rem;
+    margin-top: auto;
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
+    position: absolute;
+    bottom: 1.5rem;
+    left: 0;
+    right: 0;
+  }
+  
+  .page-number {
+    font-style: italic;
+    color: #666;
+    font-size: 0.8rem;
+    display: inline-block;
+  }
+  
+  /* Table of Contents Styling */
+  .toc-container {
+    font-size: 0.85rem !important;
+    line-height: 1.4 !important;
+  }
+  
+  .toc-title {
+    font-size: 1.2rem !important;
+    margin-bottom: 1rem !important;
+  }
+  
+  .toc-chapter {
+    font-size: 0.9rem !important;
+    margin-bottom: 0.5rem !important;
+  }
+  
+  .toc-page-number {
+    font-size: 0.85rem !important;
+  }
+  
+  .chapter-page {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+  
+  .chapter-page > div {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    position: relative;
+    padding-bottom: 3rem; /* Ensure space for footer */
+  }
+`;
+
+// Add the styles to the document
+if (typeof document !== 'undefined') {
+  const style = document.createElement('style');
+  style.textContent = bookStyles;
+  document.head.appendChild(style);
 }
