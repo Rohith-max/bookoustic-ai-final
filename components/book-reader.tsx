@@ -78,11 +78,11 @@ async function processChaptersInChunks(
       // Skip invalid chapters
       if (!chapter || !chapter.content) {
         console.warn(`Skipping invalid chapter at index ${i}:`, chapter);
-        continue;
-      }
+          continue;
+        }
 
-      // Split content into pages with max words per page
-      const chapterText = chapter.content;
+        // Split content into pages with max words per page
+        const chapterText = chapter.content;
       // Split by paragraphs - preserve all paragraph breaks
       const paragraphs = chapterText.split(/\n{2,}/).map((p: string) => p.trim()).filter((p: string) => p);
       
@@ -92,10 +92,10 @@ async function processChaptersInChunks(
         continue;
       }
       
-      let currentPageContent: string[] = [];
-      let wordCount = 0;
-      let pageCount = 0;
-      
+        let currentPageContent: string[] = [];
+        let wordCount = 0;
+        let pageCount = 0;
+        
       // Use a more conservative word limit to ensure content doesn't overflow into footer
       // Reduce by 20% to leave space for the footer and prevent cutoffs
       const adjustedWordLimit = Math.floor(MAX_WORDS_PER_PAGE * 0.8);
@@ -180,28 +180,28 @@ async function processChaptersInChunks(
             wordCount = paraWordCount;
             pageCount++;
           }
-        } else {
-          // Add paragraph to current page
-          currentPageContent.push(para);
-          wordCount += paraWordCount;
+          } else {
+            // Add paragraph to current page
+            currentPageContent.push(para);
+            wordCount += paraWordCount;
+          }
         }
-      }
-      
-      // Add final page if there's content left
-      if (currentPageContent.length > 0) {
-        pages.push({
-          type: 'chapter',
-          content: currentPageContent.join('\n\n'),
-          chapterTitle: pageCount === 0 ? chapter.title : '',
+        
+        // Add final page if there's content left
+        if (currentPageContent.length > 0) {
+          pages.push({
+            type: 'chapter',
+            content: currentPageContent.join('\n\n'),
+            chapterTitle: pageCount === 0 ? chapter.title : '',
           chapterIndex: i,
           pageNumber: pages.length + 1,
           continuesInNextPage: false // Last page of chapter
-        });
-      }
+          });
+        }
 
-      processedChapters++;
-      onProgress(Math.round((processedChapters / chapters.length) * 100));
-
+        processedChapters++;
+        onProgress(Math.round((processedChapters / chapters.length) * 100));
+      
       if (pages.length >= MAX_PAGES) {
         break;
       }
@@ -548,7 +548,7 @@ export function BookReader({
         (window as any).pdfGenerationProgress = (progress: number) => {
           // Prevent progress from getting stuck at high values
           if (progress <= 100) {
-            setPdfProgress(progress);
+          setPdfProgress(progress);
           }
           
           // If progress is high but not complete, show additional feedback
@@ -724,7 +724,7 @@ export function BookReader({
                 onClick={() => setShowAddToLibraryDialog(true)}
               >
                 <Plus className="h-4 w-4 mr-1" /> Add to Library
-              </Button>
+                    </Button>
               
               {/* Only show remove button if book has an ID (meaning it's from the library) */}
               {bookData._libraryId && (
@@ -735,10 +735,10 @@ export function BookReader({
                   className="text-red-500 hover:bg-red-50 hover:text-red-600"
                 >
                   <Trash2 className="h-4 w-4 mr-1" /> Remove
-                </Button>
+                    </Button>
               )}
-            </div>
-            
+                </div>
+                
             <div className="flex items-center">
               <span className="mr-4">
                 Cover
@@ -750,9 +750,9 @@ export function BookReader({
                 onClick={handleNextPage}
               >
                 <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-            
+                    </Button>
+          </div>
+          
             <Button 
               variant="outline" 
               size="sm" 
@@ -796,7 +796,7 @@ export function BookReader({
               onClick={() => setShowAddToLibraryDialog(true)}
             >
               <Plus className="h-4 w-4 mr-1" /> Add to Library
-            </Button>
+                  </Button>
             
             {/* Only show remove button if book has an ID (meaning it's from the library) */}
             {bookData._libraryId && (
@@ -807,42 +807,42 @@ export function BookReader({
                 className="text-red-500 hover:bg-red-50 hover:text-red-600"
               >
                 <Trash2 className="h-4 w-4 mr-1" /> Remove
-              </Button>
+                  </Button>
             )}
-          </div>
-          
-          <div className="flex items-center">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={handlePrevPage} 
+            </div>
+            
+            <div className="flex items-center">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={handlePrevPage} 
               disabled={pageIndex === 0}
-            >
+                    >
               <ChevronLeft className="h-4 w-4" />
-            </Button>
+                    </Button>
             
             <span className="mx-4">
               Pages {pageIndex + 1}-{Math.min(pageIndex + 2, pages.length)}
             </span>
             
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={handleNextPage} 
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={handleNextPage} 
               disabled={pageIndex >= pages.length - 2}
-            >
+                    >
               <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-          
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={handleDownloadPDF} 
-            disabled={isDownloading}
-          >
-            <Download className="h-4 w-4 mr-1" /> Download PDF
-          </Button>
+                    </Button>
+            </div>
+            
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={handleDownloadPDF} 
+                    disabled={isDownloading}
+                  >
+                    <Download className="h-4 w-4 mr-1" /> Download PDF
+                  </Button>
         </div>
         
         <div className="book-content flex justify-center">
@@ -972,7 +972,7 @@ const bookStyles = `
     color: #333;
     text-align: center;
   }
-  
+
   .chapter-content {
     font-size: 0.85rem;
     line-height: 1.5;

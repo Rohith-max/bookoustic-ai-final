@@ -7,80 +7,113 @@ interface TitlePageProps {
 
 export default function TitlePage({ book, category }: TitlePageProps) {
   const font = getFontForCategory(category)
+  const gold = '#e3c97b';
+  const dark = '#28221b';
 
   return (
-    <div className="title-page h-full w-full flex flex-col items-center justify-center p-8 vintage-paper">
-      <div className="text-center max-w-lg relative">
-        {/* Decorative ornament at top */}
-        <div className="absolute -top-16 left-1/2 transform -translate-x-1/2">
-          <div className="w-32 h-12 bg-[url('/ornamental-divider.png')] bg-contain bg-no-repeat bg-center opacity-60"></div>
-        </div>
-        
+    <div
+      className="title-page h-full w-full flex flex-col items-center justify-center p-4 md:p-8"
+      style={{
+        background: dark,
+        color: gold,
+        height: '100%',
+        width: '100%',
+        minHeight: 0,
+        minWidth: 0,
+        boxSizing: 'border-box',
+      }}
+    >
+      <div className="flex flex-col items-center w-full" style={{ zIndex: 2 }}>
         <h1
-          className="text-4xl md:text-5xl font-bold mb-6 text-amber-900 dark:text-amber-200"
+          className="text-4xl md:text-5xl font-bold mb-4 text-center"
           style={{
             fontFamily: `"${font.title}", serif`,
             fontWeight: font.titleWeight,
+            color: gold,
+            letterSpacing: '0.01em',
+            overflowWrap: 'anywhere',
           }}
         >
           {book.title}
         </h1>
-
         {book.subtitle && (
           <h2
-            className="text-xl md:text-2xl mb-12 text-amber-800/80 dark:text-amber-300/80 italic"
+            className="text-xl md:text-2xl italic mb-8 text-center"
             style={{
               fontFamily: `"${font.title}", serif`,
-              fontWeight: font.titleWeight,
+              color: gold,
+              fontStyle: 'italic',
+              fontWeight: 400,
+              overflowWrap: 'anywhere',
             }}
           >
             {book.subtitle}
           </h2>
         )}
-
-        <div className="my-16 border-t border-b border-amber-900/20 dark:border-amber-200/20 py-4">
-          <p
-            className="text-xl text-amber-800 dark:text-amber-300"
+        {/* Thin line above author */}
+        <div style={{ width: '100%', maxWidth: 340, borderTop: `1px solid ${gold}33`, margin: '2.5rem 0 0.5rem 0' }} />
+        {/* Author with faint stamp behind */}
+        <div className="relative flex flex-col items-center justify-center mb-2" style={{ minHeight: 80 }}>
+          {/* Faint circular stamp */}
+          <div
+            className="absolute left-1/2 top-1/2"
+            style={{
+              transform: 'translate(-50%, -50%)',
+              width: 140,
+              height: 140,
+              borderRadius: '50%',
+              border: `1.5px solid ${gold}22`,
+              opacity: 0.18,
+              zIndex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <span
+              style={{
+                color: gold,
+                fontFamily: 'serif',
+                fontSize: 18,
+                opacity: 0.18,
+                letterSpacing: 2,
+                fontWeight: 700,
+                overflowWrap: 'anywhere',
+              }}
+            >
+              LIBRARY
+            </span>
+          </div>
+          <span
+            className="text-lg md:text-xl font-semibold text-center"
             style={{
               fontFamily: `"${font.body}", serif`,
+              color: gold,
+              position: 'relative',
+              zIndex: 2,
+              overflowWrap: 'anywhere',
             }}
           >
             By {book.author}
-          </p>
+          </span>
         </div>
-
-        {/* Library stamp effect */}
-        <div className="absolute -rotate-12 opacity-20 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-          <div className="w-40 h-40 border-4 border-amber-900/30 dark:border-amber-300/30 rounded-full flex items-center justify-center">
-            <p className="text-amber-900/40 dark:text-amber-300/40 font-serif text-sm text-center">
-              BOOKOUSTIC<br/>LIBRARY
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-auto pt-16">
-          <p
-            className="text-sm text-amber-700/70 dark:text-amber-400/70 font-serif"
-            style={{
-              fontFamily: `"${font.body}", serif`,
-            }}
-          >
-            Generated with Bookoustic
-          </p>
-          <p
-            className="text-sm text-amber-700/70 dark:text-amber-400/70 font-serif"
-            style={{
-              fontFamily: `"${font.body}", serif`,
-            }}
-          >
-            {new Date().toLocaleDateString()}
-          </p>
-        </div>
-        
-        {/* Decorative ornament at bottom */}
-        <div className="absolute -bottom-16 left-1/2 transform -translate-x-1/2 rotate-180">
-          <div className="w-32 h-12 bg-[url('/ornamental-divider.png')] bg-contain bg-no-repeat bg-center opacity-60"></div>
-        </div>
+        {/* Thin line below author */}
+        <div style={{ width: '100%', maxWidth: 340, borderTop: `1px solid ${gold}33`, margin: '0.5rem 0 0 0' }} />
+      </div>
+      {/* Footer */}
+      <div className="flex flex-col items-center justify-center w-full" style={{ marginTop: 'auto' }}>
+        <span
+          className="text-sm"
+          style={{ color: gold, fontFamily: `"${font.body}", serif`, overflowWrap: 'anywhere' }}
+        >
+          Generated with Bookoustic
+        </span>
+        <span
+          className="text-sm mt-1"
+          style={{ color: gold, fontFamily: `"${font.body}", serif`, overflowWrap: 'anywhere' }}
+        >
+          {new Date().toLocaleDateString()}
+        </span>
       </div>
     </div>
   )

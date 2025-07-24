@@ -1,7 +1,6 @@
 "use client"
 
 import { getFontForCategory } from "@/lib/book-fonts"
-import { BookOpen } from "lucide-react"
 
 interface TableOfContentsProps {
   book: any
@@ -11,50 +10,60 @@ interface TableOfContentsProps {
 
 export default function TableOfContents({ book, category, onNavigate }: TableOfContentsProps) {
   const font = getFontForCategory(category)
+  const gold = '#e3c97b'
+  const dark = '#28221b'
 
   return (
-    <div className="table-of-contents h-full w-full flex flex-col p-8 vintage-paper">
-      <h2
-        className="text-3xl font-bold mb-8 text-center text-amber-900 dark:text-amber-200"
-        style={{
-          fontFamily: `"${font.title}", serif`,
-          fontWeight: font.titleWeight,
-        }}
-      >
-        Table of Contents
-      </h2>
+    <div
+      className="table-of-contents h-full w-full flex flex-col items-center p-4 md:p-8 min-h-full toc-container"
+      style={{
+        background: dark,
+        color: gold,
+        height: '100%',
+        width: '100%',
+        minHeight: '100%',
+        minWidth: 0,
+        boxSizing: 'border-box',
+      }}
+    >
+      <div className="flex flex-col items-center w-full max-w-2xl" style={{ zIndex: 2 }}>
+        <h2
+          className="text-2xl md:text-3xl font-bold mb-4 text-center toc-title"
+          style={{
+            fontFamily: `"${font.title}", serif`,
+            fontWeight: font.titleWeight,
+            color: gold,
+            letterSpacing: '0.01em',
+            overflowWrap: 'anywhere',
+          }}
+        >
+          Table of Contents
+        </h2>
 
-      <div className="mx-auto w-16 h-1 bg-amber-700/30 dark:bg-amber-700/30 mb-8 rounded"></div>
+        {/* Gold divider */}
+        <div style={{ width: 100, borderTop: `2px solid ${gold}66`, margin: '0 0 1.5rem 0' }} />
 
-      <div className="space-y-2 max-w-xl mx-auto w-full">
-        {book.tableOfContents &&
-          book.tableOfContents.map((item: string, index: number) => (
-            <div
-              key={index}
-              className="flex justify-between items-center border-b border-amber-800/20 dark:border-amber-700/20 pb-2 group cursor-pointer hover:bg-amber-100/40 dark:hover:bg-amber-900/20 px-3 py-2 rounded"
-              onClick={() => onNavigate(index)}
-            >
-              <div className="flex items-center space-x-3">
-                <BookOpen className="h-4 w-4 text-amber-700/60 dark:text-amber-500/60 group-hover:text-amber-800 dark:group-hover:text-amber-400 transition-colors" />
-                <span 
-                  className="text-amber-900 dark:text-amber-200 group-hover:text-amber-800 dark:group-hover:text-amber-100 transition-colors"
-                  style={{ fontFamily: `"${font.body}", serif` }}
-                >
-                  {item}
+        {/* List of chapters */}
+        <div className="w-full space-y-1">
+          {book.chapters?.map((chapter: any, index: number) => {
+            const chapterTitle = chapter.title.replace(/^Chapter \d+:\s*/i, '');
+            return (
+              <div
+                key={index}
+                className="w-full flex items-center gap-2 py-1 cursor-pointer group toc-chapter"
+                style={{ fontFamily: `"${font.body}", serif`, color: gold, fontSize: 14, fontWeight: 500, letterSpacing: 0.3 }}
+                onClick={() => onNavigate(index)}
+              >
+                <span className="mr-1 text-sm" style={{ color: gold, opacity: 0.8 }}>▫</span>
+                <span className="flex-1 text-left" style={{ overflowWrap: 'anywhere' }}>
+                  Chapter {index + 1}: {chapterTitle}
                 </span>
+                <span className="flex-1 mx-2 border-t border-amber-400/30 border-dotted" />
+                <span className="ml-2 text-right toc-page-number" style={{ color: gold, fontWeight: 600, minWidth: 16 }}>{index + 1}</span>
               </div>
-              <div className="flex items-center space-x-2">
-                <div className="h-px flex-grow w-12 bg-amber-800/20 dark:bg-amber-700/20"></div>
-                <span className="text-amber-800/70 dark:text-amber-500/70 text-sm font-serif">
-                  {index + 1}
-                </span>
-              </div>
-            </div>
-          ))}
-      </div>
-
-      <div className="mt-auto pt-6 flex justify-center">
-        <div className="w-32 h-8 bg-[url('/ornamental-flourish.png')] bg-contain bg-no-repeat bg-center opacity-50"></div>
+            );
+          })}
+        </div>
       </div>
     </div>
   )

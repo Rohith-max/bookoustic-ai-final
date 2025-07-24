@@ -1,4 +1,4 @@
-import { getFontForCategory, getThemeForCategory } from "@/lib/book-fonts"
+import { getFontForCategory } from "@/lib/book-fonts"
 
 interface BackCoverProps {
   book: any
@@ -7,87 +7,49 @@ interface BackCoverProps {
 
 export default function BackCover({ book, category }: BackCoverProps) {
   const font = getFontForCategory(category)
-  const theme = getThemeForCategory(category)
+  const gold = '#e3c97b';
+  const dark = '#28221b';
 
   return (
     <div
-      className={`book-back-cover h-full w-full flex flex-col items-center justify-center p-8 ${theme.coverGradient}`}
+      className="book-back-cover h-full w-full flex flex-col items-center p-4 md:p-8 min-h-full"
       style={{
-        backgroundImage: `url('/leather-texture.jpg')`,
-        backgroundSize: 'cover',
-        backgroundBlendMode: 'multiply',
-        boxShadow: 'inset 0 0 60px rgba(0,0,0,0.5)'
+        background: dark,
+        color: gold,
+        height: '100%',
+        width: '100%',
+        minHeight: '100%',
+        boxSizing: 'border-box',
+        overflow: 'hidden',
       }}
     >
-      {/* Book binding edge */}
-      <div className="absolute right-0 top-0 bottom-0 w-8 bg-[#3a2618] border-l border-[#221914] shadow-lg"></div>
-      
-      {/* Gold embossed frame */}
-      <div className="text-center p-8 w-full max-w-lg border-[12px] border-[#8d7651]/30 rounded-lg mx-12 relative"
-        style={{
-          backgroundImage: 'linear-gradient(to right, rgba(150, 120, 90, 0.2), rgba(200, 175, 140, 0.3), rgba(150, 120, 90, 0.2))',
-          boxShadow: '0 0 20px rgba(0,0,0,0.4), inset 0 0 30px rgba(0,0,0,0.3)'
-        }}
-      >
+      <div className="flex flex-col items-center w-full flex-grow" style={{ zIndex: 2 }}>
         <h2
-          className="text-2xl font-bold mb-6 text-[#c4a86b] drop-shadow-md"
+          className="text-3xl md:text-4xl font-bold mb-4 text-center"
           style={{
             fontFamily: `"${font.title}", serif`,
             fontWeight: font.titleWeight,
-            textShadow: '0 1px 3px rgba(0,0,0,0.3)'
+            color: gold,
+            letterSpacing: '0.01em',
+            overflowWrap: 'anywhere',
           }}
         >
-          About this book
+          About this Book
         </h2>
-
-        <p
-          className="text-[#c4a86b]/90 mb-8 text-left leading-relaxed"
-          style={{
-            fontFamily: `"${font.body}", serif`,
-            textShadow: '0 1px 1px rgba(0,0,0,0.2)'
-          }}
-        >
+        {/* Thin gold divider */}
+        <div style={{ width: '100%', maxWidth: 340, borderTop: `1px solid ${gold}33`, margin: '0 0 2.5rem 0' }} />
+        {/* Back cover blurb */}
+        <div className="mb-8 text-lg leading-relaxed text-center" style={{ fontFamily: `"${font.body}", serif`, color: gold, overflowWrap: 'anywhere' }}>
           {book.backCoverText}
-        </p>
-
-        <div className="mt-auto pt-8 flex justify-between items-center border-t border-[#8d7651]/30">
-          <p
-            className="text-lg text-[#c4a86b]/80 italic"
-            style={{
-              fontFamily: `"${font.body}", serif`,
-              textShadow: '0 1px 1px rgba(0,0,0,0.2)'
-            }}
-          >
-            {category}
-          </p>
-
-          <p
-            className="text-lg text-[#c4a86b]/80"
-            style={{
-              fontFamily: `"${font.body}", serif`,
-              textShadow: '0 1px 1px rgba(0,0,0,0.2)'
-            }}
-          >
-            Bookoustic
-          </p>
         </div>
-
-        {/* Decorative elements */}
-        <div className="absolute bottom-[-6px] right-[-6px] w-24 h-24 opacity-50">
-          <div className="absolute bottom-4 right-4 transform rotate-12">
-            <div className="w-16 h-16 rounded-full border-2 border-[#c4a86b]/60 flex items-center justify-center">
-              <span className="text-[#c4a86b]/80 text-xs font-serif">ex libris</span>
-            </div>
-          </div>
-        </div>
-
-        {/* ISBN-like barcode for decoration */}
-        <div className="mt-4 pt-4">
-          <div className="flex justify-center">
-            <div className="h-8 w-48 bg-[#c4a86b]/20 border border-[#c4a86b]/30 rounded-sm flex items-center justify-center">
-              <div className="text-xs text-[#c4a86b]/90 font-mono">ISBN 978-0-00000-000-0</div>
-            </div>
-          </div>
+      </div>
+      {/* Footer */}
+      <div className="flex flex-col items-center justify-end w-full pb-2" style={{ minHeight: 0 }}>
+        <span className="text-sm" style={{ color: gold, fontFamily: `"${font.body}", serif`, overflowWrap: 'anywhere' }}>
+          A Bookoustic Publication
+        </span>
+        <div className="h-8 w-48 bg-transparent border border-[rgba(227,201,123,0.4)] rounded-sm flex items-center justify-center mt-2">
+          <div className="text-xs font-mono" style={{ color: gold, opacity: 0.7, overflowWrap: 'anywhere' }}>ISBN 978-0-00000-000-0</div>
         </div>
       </div>
     </div>

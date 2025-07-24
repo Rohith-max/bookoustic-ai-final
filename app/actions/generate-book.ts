@@ -1,67 +1,105 @@
 "use server"
 
-export async function generateBook(prompt: string, category: string, bookLength = "medium"): Promise<any> {
+// Add logging utilities
+const DEBUG = true; // Set to true to enable verbose logging
+
+function logDebug(...args: any[]) {
+  if (DEBUG) {
+    console.log('[Book Generator Debug]', ...args);
+  }
+}
+
+function logError(...args: any[]) {
+  console.error('[Book Generator Error]', ...args);
+}
+
+export async function generateBook(
+  prompt: string,
+  category: string,
+  bookLength = "medium"
+): Promise<any> {
   try {
+    logDebug('Starting book generation', { prompt, category, bookLength });
+    
     // Check if API key is available
     if (!process.env.GROQ_API_KEY) {
+      logError('GROQ_API_KEY is not defined in environment variables');
       throw new Error("GROQ_API_KEY is not defined in environment variables")
     }
 
     // Determine chapter count, content length, and token allocation based on book length
     let minChapters, maxChapters, chapterMaxTokens, wordCount, pagesEstimate, wordsPerChapter
-    let max_tokens = 32768
+    // Token calculation: 1 word ≈ 1.5 tokens, add 30% buffer
+    function calcTokens(words: number, cap: number) {
+      return Math.min(Math.ceil(words * 1.5 * 1.3), cap);
+    }
     
     switch (bookLength) {
       case "short":
-        minChapters = 3
-        maxChapters = 5
-        chapterMaxTokens = max_tokens // Tokens per chapter
+        minChapters = 5
+        maxChapters = 7
+        wordsPerChapter = 1750; // average of 1,500-2,000
+        chapterMaxTokens = calcTokens(wordsPerChapter, 8000); // Cap at 8k tokens
         wordCount = "5,000-8,000"
-        pagesEstimate = "12"
-        wordsPerChapter = "1,500-2,000"
+        pagesEstimate = "15"
         break
       case "medium":
-        minChapters = 5
-        maxChapters = 8
-        chapterMaxTokens = max_tokens // Tokens per chapter
+        minChapters = 7
+        maxChapters = 10
+        wordsPerChapter = 2250; // average of 2,000-2,500
+        chapterMaxTokens = calcTokens(wordsPerChapter, 8000); // Cap at 8k tokens
         wordCount = "10,000-15,000"
-        pagesEstimate = "22"
-        wordsPerChapter = "2,000-2,500"
+        pagesEstimate = "26"
         break
       case "long":
-        minChapters = 8
-        maxChapters = 12
-        chapterMaxTokens = max_tokens // Tokens per chapter
+        minChapters = 10
+        maxChapters = 15
+        wordsPerChapter = 2500; // average of 2,000-3,000
+        chapterMaxTokens = calcTokens(wordsPerChapter, 12000); // Cap at 12k tokens
         wordCount = "15,000-20,000"
-        pagesEstimate = "32"
-        wordsPerChapter = "2,000-3,000"
+        pagesEstimate = "40"
         break
       default:
         minChapters = 5
         maxChapters = 8
-        chapterMaxTokens = 15000 // Tokens per chapter
+        wordsPerChapter = 2250;
+        chapterMaxTokens = calcTokens(wordsPerChapter, 8000);
         wordCount = "10,000-15,000"
         pagesEstimate = "22"
-        wordsPerChapter = "2,000-2,500"
     }
 
     const chapterCount = `${minChapters}-${maxChapters}`
     const expectedChapters = bookLength === "long" ? maxChapters : minChapters
+    
+    logDebug('Book configuration', { 
+      expectedChapters, 
+      wordsPerChapter, 
+      chapterMaxTokens,
+      totalWordCount: wordCount,
+      pagesEstimate
+    });
 
     // Extract potential character perspective from prompt
     const characterPerspective = extractCharacterPerspective(prompt)
     let styleGuidance = ""
 
     if (characterPerspective) {
+      logDebug('Character perspective detected', { characterPerspective });
       styleGuidance = `
 CRITICAL: This book MUST be written from the FIRST-PERSON perspective of ${characterPerspective}. 
 You MUST fully embody their unique voice, vocabulary, mannerisms, and thought patterns throughout the ENTIRE text.
 
 If this is a known character (fictional or real), you MUST accurately reflect their personality traits in the writing style:
 - If they're childlike (like Luffy from One Piece), use simple vocabulary, express wonder, and write with enthusiasm and naivety
-- If they're scholarly, use sophisticated language and reference academic concepts
-- If they're humorous, incorporate jokes and playful language
-- If they're poetic, use metaphors and vivid imagery
+- If they're scholarly (like a litreature author), use sophisticated language and reference academic concepts
+- If they're humorous (like a comedian or short skit maker like charlie chaplin), incorporate jokes and playful language
+- If they're poetic (like robert frost), use metaphors and vivid imagery
+- If they're a poet, use poetic language and imagery
+- If they're a philosopher, use philosophical language and concepts
+- If they're a scientist, use scientific language and concepts
+- If they're a historian, use historical language and concepts
+- If they're a politician, use political language and concepts
+- If they're a business person, use business language and concepts
 
 The reader should IMMEDIATELY recognize who is "speaking" from the writing style alone. The character's personality must shine through in EVERY paragraph.
 
@@ -74,6 +112,7 @@ DO NOT simply write ABOUT the character - write AS the character, with their exa
 `
     } else if (category === "Autobiography" || category === "Memoir") {
       // For autobiographies without a specific character, use a first-person perspective
+      logDebug('Using first-person perspective for autobiography/memoir');
       styleGuidance = `
 This book MUST be written in the FIRST-PERSON perspective, as a genuine autobiography or memoir.
 The narrator should have a distinct personality and voice that remains consistent throughout.
@@ -86,7 +125,7 @@ Use "I" and "my" throughout the text, and write as if the narrator is sharing th
     const categoryGuidance = getCategorySpecificGuidance(category)
     
     // First generate book structure
-    console.log("Generating book structure...")
+    logDebug("Generating book structure...");
     
     const structurePrompt = `You are a professional book author specializing in ${category} books.
 Create a detailed outline for a book based on the following prompt: "${prompt}"
@@ -129,9 +168,14 @@ REMEMBER: Your entire response must be a valid JSON object that can be parsed wi
     // Call API to get book structure with retry for network errors
     let bookStructure;
     try {
+      logDebug('Making API request for book structure');
       bookStructure = await makeApiRequest(structurePrompt, prompt, 10000, "json");
+      logDebug('Book structure generated successfully', { 
+        title: bookStructure.title,
+        chapterCount: bookStructure.tableOfContents?.length
+      });
     } catch (error) {
-      console.error("Failed to generate book structure:", error);
+      logError("Failed to generate book structure:", error);
       throw new Error("Failed to generate book structure. Please try again.");
     }
     
@@ -146,7 +190,7 @@ REMEMBER: Your entire response must be a valid JSON object that can be parsed wi
     delete bookContent.chapterSummaries;
     
     // Generate each chapter one by one
-    console.log("Starting chapter-by-chapter generation...");
+    logDebug("Starting chapter-by-chapter generation...");
     
     // Track rate limit approaches
     let requestCount = 0;
@@ -156,16 +200,16 @@ REMEMBER: Your entire response must be a valid JSON object that can be parsed wi
     for (let chapterIndex = 0; chapterIndex < expectedChapters; chapterIndex++) {
       // Check if we need to apply rate limit cooldown
       if (requestCount >= MAX_REQUESTS_BEFORE_COOLDOWN) {
-        console.log("Approaching rate limit, pausing for cooldown...");
+        logDebug("Approaching rate limit, pausing for cooldown...");
         await new Promise(resolve => setTimeout(resolve, 62000)); // 1 minute and 2 seconds
         requestCount = 0;
-        console.log("Cooldown complete, resuming generation...");
+        logDebug("Cooldown complete, resuming generation...");
       }
       
       // Special handling for the final chapter
       const isFinalChapter = chapterIndex === expectedChapters - 1;
       
-      console.log(`Generating chapter ${chapterIndex + 1} of ${expectedChapters}...${isFinalChapter ? " (Final chapter)" : ""}`);
+      logDebug(`Generating chapter ${chapterIndex + 1} of ${expectedChapters}...${isFinalChapter ? " (Final chapter)" : ""}`);
       
       const chapterTitle = chapterSummaries[chapterIndex].title;
       const chapterSummary = chapterSummaries[chapterIndex].summary;
@@ -215,17 +259,15 @@ IMPORTANT: ONLY output the raw text content for this chapter. Do NOT include any
       try {
         // For the final chapter, we'll add an extra delay to ensure API readiness
         if (isFinalChapter) {
-          console.log("Preparing for final chapter generation, adding a precautionary delay...");
+          logDebug("Preparing for final chapter generation, adding a precautionary delay...");
           await new Promise(resolve => setTimeout(resolve, 10000)); // 10 second pause before final chapter
         }
         
         // Use a slightly lower token limit for the final chapter to reduce timeout risk
         const adjustedTokenLimit = isFinalChapter 
-          ? Math.floor(chapterMaxTokens * 0.8)  // 80% of the regular token limit for final chapter
+          ? Math.floor(chapterMaxTokens * 0.9)  // 90% of the calculated token limit for final chapter
           : chapterMaxTokens;
-        
-        console.log(`Using token limit of ${adjustedTokenLimit} for chapter ${chapterIndex + 1}`);
-        
+        logDebug(`Using token limit of ${adjustedTokenLimit} for chapter ${chapterIndex + 1}`);
         const chapterContent = await makeApiRequest(chapterPrompt, prompt, adjustedTokenLimit, "completion");
         requestCount++;
         
@@ -234,8 +276,14 @@ IMPORTANT: ONLY output the raw text content for this chapter. Do NOT include any
           title: chapterTitle,
           content: chapterContent
         });
+        
+        logDebug(`Chapter ${chapterIndex + 1} generated successfully`, {
+          title: chapterTitle,
+          contentLength: chapterContent.length,
+          wordCount: chapterContent.split(/\s+/).length
+        });
       } catch (error) {
-        console.error(`Failed to generate chapter ${chapterIndex + 1}:`, error);
+        logError(`Failed to generate chapter ${chapterIndex + 1}:`, error);
         
         // Special handling for final chapter failure - create a reasonable conclusion
         const fallbackContent = isFinalChapter
@@ -248,6 +296,8 @@ IMPORTANT: ONLY output the raw text content for this chapter. Do NOT include any
           content: fallbackContent
         });
         
+        logDebug(`Added fallback content for chapter ${chapterIndex + 1}`);
+        
         // If the final chapter failed, add a small delay before continuing
         if (isFinalChapter) {
           await new Promise(resolve => setTimeout(resolve, 5000));
@@ -255,10 +305,16 @@ IMPORTANT: ONLY output the raw text content for this chapter. Do NOT include any
       }
 
       // --- Progress callback for chapter generation ---
+      // Only update progress if running on the client (for legacy support)
+      const percent = Math.round(((chapterIndex + 1) / expectedChapters) * 100);
       if (typeof window !== "undefined" && typeof (window as any).chapterGenerationProgress === "function") {
-        const percent = Math.round(((chapterIndex + 1) / expectedChapters) * 100);
         (window as any).chapterGenerationProgress(percent);
       }
+      
+      // Call the simplified onProgress callback if provided
+      // If (onProgress) {
+      //   onProgress();
+      // }
 
       // Allow a break between chapters to avoid hitting rate limits
       if (chapterIndex < expectedChapters - 1) {
@@ -275,9 +331,16 @@ IMPORTANT: ONLY output the raw text content for this chapter. Do NOT include any
       }
     };
 
+    logDebug('Book generation complete', {
+      title: bookContent.title,
+      chapters: bookContent.chapters.length,
+      totalWords: bookContent.chapters.reduce((total: number, chapter: any) => 
+        total + (chapter.content ? chapter.content.split(/\s+/).length : 0), 0)
+    });
+
     return bookContent;
   } catch (error) {
-    console.error("Error generating book:", error);
+    logError("Error generating book:", error);
     throw error;
   }
 }
@@ -289,7 +352,11 @@ async function makeApiRequest(systemPrompt: string, userPrompt: string, maxToken
   
   while (retryCount <= MAX_RETRIES) {
     try {
-      console.log(`API request (Attempt ${retryCount + 1}/${MAX_RETRIES + 1})...`);
+      logDebug(`API request (Attempt ${retryCount + 1}/${MAX_RETRIES + 1})...`, {
+        responseType,
+        maxTokens,
+        promptLength: systemPrompt.length
+      });
       
       const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
@@ -313,10 +380,11 @@ async function makeApiRequest(systemPrompt: string, userPrompt: string, maxToken
         const errorText = await response.text();
         // If rate limited, wait and retry (pause for 62 seconds)
         if (response.status === 429) {
-          console.log("Rate limited, waiting for 62 seconds...");
+          logDebug("Rate limited, waiting for 62 seconds...");
           await new Promise(resolve => setTimeout(resolve, 62000));
           continue; // Try again
         }
+        logError(`API error: ${response.status}`, errorText);
         throw new Error(`API error: ${response.status} ${errorText}`);
       }
 
@@ -324,10 +392,14 @@ async function makeApiRequest(systemPrompt: string, userPrompt: string, maxToken
       const generatedText = data.choices[0]?.message?.content;
 
       if (!generatedText) {
+        logError("No response received from API");
         throw new Error("No response received from API");
       }
 
-      console.log("Response received successfully");
+      logDebug("Response received successfully", {
+        responseLength: generatedText.length,
+        responseType
+      });
       
       if (responseType === "completion") {
         return generatedText;
@@ -344,13 +416,16 @@ async function makeApiRequest(systemPrompt: string, userPrompt: string, maxToken
         
         return parsedResponse;
       } catch (parseError) {
+        logError("Failed to parse API response as JSON", parseError);
         // Try to extract JSON from the text
         const jsonMatch = generatedText.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
           try {
+            logDebug("Attempting to extract JSON from text");
             return JSON.parse(jsonMatch[0]);
           } catch (extractError) {
             // If we still can't parse it, throw an error
+            logError("Failed to extract JSON from text", extractError);
             throw new Error("Failed to parse API response as JSON");
           }
         }
@@ -358,13 +433,13 @@ async function makeApiRequest(systemPrompt: string, userPrompt: string, maxToken
       }
     } catch (error: any) {
       // Network or API error
-      console.error(`Request failed:`, error.message || error);
+      logError(`Request failed:`, error.message || error);
       
       // Retry for network errors
       if (retryCount < MAX_RETRIES) {
         retryCount++;
         const delay = Math.pow(2, retryCount) * 1000; // Exponential backoff
-        console.log(`Retrying in ${delay/1000} seconds...`);
+        logDebug(`Retrying in ${delay/1000} seconds...`);
         await new Promise(resolve => setTimeout(resolve, delay));
         continue;
       }

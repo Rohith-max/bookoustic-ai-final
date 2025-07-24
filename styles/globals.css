@@ -16,6 +16,7 @@ body {
   :root {
     --background: 0 0% 100%;
     --foreground: 0 0% 3.9%;
+    --foreground-darker: 227 41% 45%; 
     --card: 0 0% 100%;
     --card-foreground: 0 0% 3.9%;
     --popover: 0 0% 100%;
@@ -51,6 +52,7 @@ body {
   .dark {
     --background: 0 0% 3.9%;
     --foreground: 0 0% 98%;
+    --foreground-darker: 222 64% 80%; /* #b6c6e3 lighter navy for dark mode */
     --card: 0 0% 3.9%;
     --card-foreground: 0 0% 98%;
     --popover: 0 0% 3.9%;
@@ -89,7 +91,8 @@ body {
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background;
+    color: var(--foreground-darker);
   }
 }
 

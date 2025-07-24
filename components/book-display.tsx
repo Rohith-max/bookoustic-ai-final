@@ -1,5 +1,14 @@
 import { Loader2 } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import dynamic from "next/dynamic";
+const BookCover = dynamic(() => import("./book-cover"), {
+  loading: () => <div className="text-center py-12 text-amber-700 dark:text-amber-200 font-serif">Loading cover...</div>,
+  ssr: false,
+});
+const BackCover = dynamic(() => import("./back-cover"), {
+  loading: () => <div className="text-center py-12 text-amber-700 dark:text-amber-200 font-serif">Loading back cover...</div>,
+  ssr: false,
+});
 
 interface BookDisplayProps {
   content: string | null

@@ -7,7 +7,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { useState } from "react"
 
-const categories = [
+export const categories = [
   "Fiction",
   "Non-Fiction",
   "Biography",
@@ -26,7 +26,7 @@ const categories = [
   "Travel",
   "Guide/How-To",
   "Children's",
-  "Young Adult (YA)",
+  "Young Adult",
   "Drama",
   "Poetry",
   "Satire",
@@ -52,7 +52,7 @@ const categories = [
   "Coming-of-Age",
   "Western",
   "War & Military",
-]
+];
 
 interface CategorySelectorProps {
   selectedCategory: string

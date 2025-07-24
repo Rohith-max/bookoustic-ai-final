@@ -1,4 +1,4 @@
-import { getFontForCategory, getThemeForCategory } from "@/lib/book-fonts"
+import { getFontForCategory } from "@/lib/book-fonts"
 
 interface BookCoverProps {
   book: any
@@ -7,80 +7,113 @@ interface BookCoverProps {
 
 export default function BookCover({ book, category }: BookCoverProps) {
   const font = getFontForCategory(category)
-  const theme = getThemeForCategory(category)
+  const gold = '#e3c97b';
+  const dark = '#28221b';
 
   return (
     <div 
-      className={`book-cover h-full w-full flex flex-col items-center justify-center p-8 ${theme.coverGradient}`}
+      className="book-cover book-cover-capture h-full w-full flex flex-col items-center justify-center p-4 md:p-8"
       style={{
-        backgroundImage: `url('/leather-texture.jpg')`,
-        backgroundSize: 'cover',
-        backgroundBlendMode: 'multiply',
-        boxShadow: 'inset 0 0 60px rgba(0,0,0,0.5)'
+        background: dark,
+        color: gold,
+        height: '100%',
+        width: '100%',
+        minHeight: 0,
+        minWidth: 0,
+        boxSizing: 'border-box',
       }}
     >
-      {/* Book binding edge */}
-      <div className="absolute left-0 top-0 bottom-0 w-8 bg-[#3a2618] border-r border-[#221914] shadow-lg"></div>
-      
-      {/* Gold embossed frame */}
-      <div className="text-center p-8 w-full max-w-lg border-[12px] border-[#8d7651]/30 rounded-lg mx-12 relative"
-        style={{
-          backgroundImage: 'linear-gradient(to right, rgba(150, 120, 90, 0.2), rgba(200, 175, 140, 0.3), rgba(150, 120, 90, 0.2))',
-          boxShadow: '0 0 20px rgba(0,0,0,0.4), inset 0 0 30px rgba(0,0,0,0.3)'
-        }}
-      >
-        {/* Decorative corner elements */}
-        <div className="absolute top-[-2px] left-[-2px] w-16 h-16 border-t-4 border-l-4 border-[#c4a86b]/70 rounded-tl-sm"></div>
-        <div className="absolute top-[-2px] right-[-2px] w-16 h-16 border-t-4 border-r-4 border-[#c4a86b]/70 rounded-tr-sm"></div>
-        <div className="absolute bottom-[-2px] left-[-2px] w-16 h-16 border-b-4 border-l-4 border-[#c4a86b]/70 rounded-bl-sm"></div>
-        <div className="absolute bottom-[-2px] right-[-2px] w-16 h-16 border-b-4 border-r-4 border-[#c4a86b]/70 rounded-br-sm"></div>
-
+      <div className="flex flex-col items-center w-full" style={{ zIndex: 2 }}>
         <h1
-          className="text-4xl md:text-5xl font-bold mb-6 text-[#c4a86b] drop-shadow-md"
+          className="text-4xl md:text-5xl font-bold mb-4 text-center"
           style={{
             fontFamily: `"${font.title}", serif`,
             fontWeight: font.titleWeight,
-            textShadow: '0 2px 4px rgba(0,0,0,0.3)'
+            color: gold,
+            letterSpacing: '0.01em',
+            overflowWrap: 'anywhere',
           }}
         >
           {book.title}
         </h1>
-
         {book.subtitle && (
           <h2
-            className="text-xl md:text-2xl mb-10 text-[#c4a86b]/80"
+            className="text-xl md:text-2xl italic mb-8 text-center"
             style={{
               fontFamily: `"${font.title}", serif`,
-              fontWeight: font.titleWeight,
-              textShadow: '0 1px 2px rgba(0,0,0,0.3)'
+              color: gold,
+              fontStyle: 'italic',
+              fontWeight: 400,
+              overflowWrap: 'anywhere',
             }}
           >
             {book.subtitle}
           </h2>
         )}
-
-        <div className="mt-auto pt-10">
-          <p
-            className="text-xl text-[#c4a86b]/90 italic"
+        {/* Thin line above author */}
+        <div style={{ width: '100%', maxWidth: 340, borderTop: `1px solid ${gold}33`, margin: '2.5rem 0 0.5rem 0' }} />
+        {/* Author with faint stamp behind */}
+        <div className="relative flex flex-col items-center justify-center mb-2" style={{ minHeight: 80 }}>
+          {/* Faint circular stamp */}
+          <div
+            className="absolute left-1/2 top-1/2"
+            style={{
+              transform: 'translate(-50%, -50%)',
+              width: 140,
+              height: 140,
+              borderRadius: '50%',
+              border: `1.5px solid ${gold}22`,
+              opacity: 0.18,
+              zIndex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <span
+              style={{
+                color: gold,
+                fontFamily: 'serif',
+                fontSize: 18,
+                opacity: 0.18,
+                letterSpacing: 2,
+                fontWeight: 700,
+                overflowWrap: 'anywhere',
+              }}
+            >
+              LIBRARY
+            </span>
+          </div>
+          <span
+            className="text-lg md:text-xl font-semibold text-center"
             style={{
               fontFamily: `"${font.body}", serif`,
-              textShadow: '0 1px 1px rgba(0,0,0,0.3)'
+              color: gold,
+              position: 'relative',
+              zIndex: 2,
+              overflowWrap: 'anywhere',
             }}
           >
             By {book.author}
-          </p>
+          </span>
         </div>
-
-        {/* Category emblem */}
-        <div className="absolute top-0 left-0 w-full h-full -z-10 opacity-30">
-          <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 text-4xl text-[#c4a86b]">
-            {category === "Fantasy" && "✦"}
-            {category === "Science Fiction" && "⬡"}
-            {category === "Mystery" && "?"}
-            {category === "Horror" && "☠"}
-            {!["Fantasy", "Science Fiction", "Mystery", "Horror"].includes(category) && "❧"}
+        {/* Thin line below author */}
+        <div style={{ width: '100%', maxWidth: 340, borderTop: `1px solid ${gold}33`, margin: '0.5rem 0 0 0' }} />
           </div>
-        </div>
+      {/* Footer */}
+      <div className="flex flex-col items-center justify-center w-full" style={{ marginTop: 'auto' }}>
+        <span
+          className="text-sm"
+          style={{ color: gold, fontFamily: `"${font.body}", serif`, overflowWrap: 'anywhere' }}
+        >
+          Generated with Bookoustic
+        </span>
+        <span
+          className="text-sm mt-1"
+          style={{ color: gold, fontFamily: `"${font.body}", serif`, overflowWrap: 'anywhere' }}
+        >
+          {new Date().toLocaleDateString()}
+        </span>
       </div>
     </div>
   )
