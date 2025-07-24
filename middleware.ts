@@ -1,23 +1,18 @@
 // middleware.ts
-import { clerkMiddleware } from "@clerk/nextjs/server";
-
-// This example protects all routes including api/trpc routes
-// Please edit this to allow other routes to be public as needed.
-export default clerkMiddleware({
-  // Public routes that don't require authentication
-  publicRoutes: [
-    "/",
-    "/api/(.*)",
-    "/test(.*)"
-  ]
-});
-
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+ 
+// This function can be marked `async` if using `await` inside
+export function middleware(request: NextRequest) {
+  // Allow all requests to proceed
+  return NextResponse.next();
+}
+ 
+// See "Matching Paths" below to learn more
 export const config = {
   matcher: [
-    // Match all request paths except for the ones starting with:
-    // - _next/static (static files)
-    // - _next/image (image optimization files)
-    // - favicon.ico (favicon file)
-    "/((?!_next/static|_next/image|favicon.ico).*)",
+    // Skip all internal paths (_next)
+    // Skip all static files (images, etc)
+    '/((?!api|_next/static|_next/image|favicon.ico|.*\\.png$).*)',
   ],
 };
