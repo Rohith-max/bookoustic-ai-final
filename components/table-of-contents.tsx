@@ -15,7 +15,7 @@ export default function TableOfContents({ book, category, onNavigate }: TableOfC
 
   return (
     <div
-      className="table-of-contents h-full w-full flex flex-col items-center p-4 md:p-8 min-h-full toc-container"
+      className="table-of-contents h-full w-full flex flex-col items-center p-4 md:p-8 min-h-full toc-container text-[8px] sm:text-[7px] space-y-2"
       style={{
         background: dark,
         color: gold,
@@ -28,7 +28,7 @@ export default function TableOfContents({ book, category, onNavigate }: TableOfC
     >
       <div className="flex flex-col items-center w-full max-w-2xl" style={{ zIndex: 2 }}>
         <h2
-          className="text-2xl md:text-3xl font-bold mb-4 text-center toc-title"
+          className="text-[10px] md:text-xs font-bold mb-4 text-center toc-title"
           style={{
             fontFamily: `"${font.title}", serif`,
             fontWeight: font.titleWeight,
@@ -50,16 +50,16 @@ export default function TableOfContents({ book, category, onNavigate }: TableOfC
             return (
               <div
                 key={index}
-                className="w-full flex items-center gap-2 py-1 cursor-pointer group toc-chapter"
-                style={{ fontFamily: `"${font.body}", serif`, color: gold, fontSize: 14, fontWeight: 500, letterSpacing: 0.3 }}
+                className="w-full flex items-center gap-2 py-1 cursor-pointer group toc-chapter font-medium mb-1"
+                style={{ fontFamily: `"${font.body}", serif`, color: gold, fontSize: 4, fontWeight: 500, letterSpacing: 0.3 }}
                 onClick={() => onNavigate(index)}
               >
-                <span className="mr-1 text-sm" style={{ color: gold, opacity: 0.8 }}>▫</span>
+                <span className="mr-1 text-[7px]" style={{ color: gold, opacity: 0.8 }}>▫</span>
                 <span className="flex-1 text-left" style={{ overflowWrap: 'anywhere' }}>
                   Chapter {index + 1}: {chapterTitle}
                 </span>
                 <span className="flex-1 mx-2 border-t border-amber-400/30 border-dotted" />
-                <span className="ml-2 text-right toc-page-number" style={{ color: gold, fontWeight: 600, minWidth: 16 }}>{index + 1}</span>
+                <span className="ml-2 text-right toc-page-number text-[7px] ml-2" style={{ color: gold, fontWeight: 600, minWidth: 4, fontSize: 4 }}>{index + 1}</span>
               </div>
             );
           })}

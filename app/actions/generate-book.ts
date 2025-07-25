@@ -36,32 +36,32 @@ export async function generateBook(
     
     switch (bookLength) {
       case "short":
-        minChapters = 5
-        maxChapters = 7
+        minChapters = 8
+        maxChapters = 10
         wordsPerChapter = 1750; // average of 1,500-2,000
         chapterMaxTokens = calcTokens(wordsPerChapter, 8000); // Cap at 8k tokens
         wordCount = "5,000-8,000"
         pagesEstimate = "15"
         break
       case "medium":
-        minChapters = 7
-        maxChapters = 10
+        minChapters = 10
+        maxChapters = 13
         wordsPerChapter = 2250; // average of 2,000-2,500
         chapterMaxTokens = calcTokens(wordsPerChapter, 8000); // Cap at 8k tokens
         wordCount = "10,000-15,000"
         pagesEstimate = "26"
         break
       case "long":
-        minChapters = 10
-        maxChapters = 15
+        minChapters = 13
+        maxChapters = 18
         wordsPerChapter = 2500; // average of 2,000-3,000
         chapterMaxTokens = calcTokens(wordsPerChapter, 12000); // Cap at 12k tokens
         wordCount = "15,000-20,000"
         pagesEstimate = "40"
         break
       default:
-        minChapters = 5
-        maxChapters = 8
+        minChapters = 8
+        maxChapters = 11
         wordsPerChapter = 2250;
         chapterMaxTokens = calcTokens(wordsPerChapter, 8000);
         wordCount = "10,000-15,000"
@@ -310,7 +310,7 @@ IMPORTANT: ONLY output the raw text content for this chapter. Do NOT include any
       if (typeof window !== "undefined" && typeof (window as any).chapterGenerationProgress === "function") {
         (window as any).chapterGenerationProgress(percent);
       }
-      
+
       // Call the simplified onProgress callback if provided
       // If (onProgress) {
       //   onProgress();

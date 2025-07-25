@@ -44,6 +44,7 @@ interface BookReaderProps {
   category: string
   setPageContent?: (pages: any[]) => void
   onClose: () => void;
+  onPreviewReady?: () => void;
 }
 
 // Constants for page dimensions and limits
@@ -220,6 +221,7 @@ export function BookReader({
   category = "Fiction",
   isLoading,
   onClose,
+  onPreviewReady,
 }: BookReaderProps) {
   const [pages, setPages] = useState<any[]>([]);
   const [pageIndex, setPageIndex] = useState(0);
@@ -623,7 +625,9 @@ export function BookReader({
         hasChapters: Array.isArray(bookData.chapters) && bookData.chapters.length > 0,
         firstChapter: bookData.chapters[0]
       });
-      processBook();
+      processBook().then(() => {
+        if (onPreviewReady) onPreviewReady();
+      });
     } else if (bookData) {
       // Only log an error if bookData exists but has no chapters
       console.log("Book data missing chapters:", bookData);

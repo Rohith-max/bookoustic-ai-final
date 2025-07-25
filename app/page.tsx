@@ -1,6 +1,6 @@
 "use client"
-import BookousticInterface from "@/components/bookoustic-interface"
+import ModernInterface from "@/components/modern-interface"
 
 export default function Home() {
-  return <BookousticInterface />
+  return <ModernInterface />
 }

@@ -467,10 +467,6 @@ export const categoryThemes = {
     },
     chapterTitlePage: {
       backgroundColor: "#f1f5f9",
-      borderLeft: "1px solid #cbd50,0,0.2)",
-    },
-    chapterTitlePage: {
-      backgroundColor: "#f1f5f9",
       borderLeft: "1px solid #cbd5e1",
     },
     textColor: "#0f172a",

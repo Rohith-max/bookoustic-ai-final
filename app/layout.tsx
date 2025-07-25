@@ -1,19 +1,32 @@
 // app/layout.tsx
 import type { Metadata } from "next";
-import {
-  ClerkProvider,
-} from "@clerk/nextjs";
+import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { getAllFontsUrl } from "@/lib/book-fonts";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
+import { ReactNode } from "react";
 
 export const metadata: Metadata = {
   title: "Bookoustic - AI Book Author",
   description: "Generate professional books with AI",
   generator: "v0.dev"
+};
+
+// Safe ClerkProvider component
+const SafeClerkProvider = ({ children }: { children: ReactNode }) => {
+  try {
+    return (
+      <ClerkProvider>
+        {children}
+      </ClerkProvider>
+    );
+  } catch (error) {
+    console.error("Error initializing ClerkProvider:", error);
+    return <>{children}</>;
+  }
 };
 
 export default function RootLayout({
@@ -22,10 +35,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <ClerkProvider publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}>
-      <html lang="en" className="dark" suppressHydrationWarning>
-        <body className={`dark`}>
-          <ThemeProvider attribute="class" defaultTheme="dark" forcedTheme="dark" disableTransitionOnChange>
+    <SafeClerkProvider>
+      <html lang="en" suppressHydrationWarning>
+        <head>
+          <link rel="stylesheet" href={getAllFontsUrl()} />
+        </head>
+        <body>
+          <ThemeProvider attribute="class" defaultTheme="light" disableTransitionOnChange>
             <TooltipProvider>
               <Toaster />
               <Sonner />
@@ -34,6 +50,6 @@ export default function RootLayout({
           </ThemeProvider>
         </body>
       </html>
-    </ClerkProvider>
+    </SafeClerkProvider>
   );
 }

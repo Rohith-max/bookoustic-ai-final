@@ -78,12 +78,12 @@ export async function generatePDF(
           // Update progress
           if (progressCallback && typeof progressCallback === "function") {
             progressCallback(currentProgress);
-          }
+        }
+        
+        try {
+          logDebug(`Rendering page ${i + 1}/${totalPages} (${page.type})`);
           
-          try {
-            logDebug(`Rendering page ${i + 1}/${totalPages} (${page.type})`);
-            
-            // Render the page content
+          // Render the page content
             const pageElement = document.createElement("div");
             pageElement.className = "book-content";
             pageElement.style.width = "490px";
@@ -101,47 +101,47 @@ export async function generatePDF(
             pageElement.style.overflow = "hidden";
             tempContainer.innerHTML = "";
             tempContainer.appendChild(pageElement);
-            
-            // Only use renderPageFunction if provided
-            let root;
-            if (renderPageFunction) {
-              logDebug(`Using custom render function for page ${i + 1}`);
+          
+          // Only use renderPageFunction if provided
+          let root;
+          if (renderPageFunction) {
+            logDebug(`Using custom render function for page ${i + 1}`);
               root = ReactDOM.createRoot(pageElement);
               const jsx = renderPageFunction(page, category);
               root.render(jsx);
               await new Promise((resolve) => setTimeout(resolve, 50)); // Reduced timeout
-            } else {
-              // Fallback rendering for when no renderPageFunction is provided
-              logDebug(`Using fallback rendering for page ${i + 1}`);
-              pageElement.innerHTML = `
-                <div style="padding: 40px; height: 100%; display: flex; flex-direction: column;">
+          } else {
+            // Fallback rendering for when no renderPageFunction is provided
+            logDebug(`Using fallback rendering for page ${i + 1}`);
+            pageElement.innerHTML = `
+              <div style="padding: 40px; height: 100%; display: flex; flex-direction: column;">
                   <div style="text-align: center; margin-bottom: 20px; font-size: 18px;">
                     ${page.chapterTitle ? `<h2 style="font-size: 28px; margin-bottom: 20px;">${page.chapterTitle}</h2>` : ''}
-                    ${page.type === 'chapter' ? `<div>Chapter ${page.chapterIndex + 1}</div>` : ''}
-                  </div>
-                  <div style="flex: 1; font-size: 16px; line-height: 1.6;">
-                    ${page.content || ''}
-                  </div>
-                  <div style="text-align: center; margin-top: 20px;">
-                    ${page.pageNumber ? `-${page.pageNumber}-` : ''}
-                  </div>
+                  ${page.type === 'chapter' ? `<div>Chapter ${page.chapterIndex + 1}</div>` : ''}
                 </div>
-              `;
+                  <div style="flex: 1; font-size: 16px; line-height: 1.6;">
+                  ${page.content || ''}
+                </div>
+                <div style="text-align: center; margin-top: 20px;">
+                  ${page.pageNumber ? `-${page.pageNumber}-` : ''}
+                </div>
+              </div>
+            `;
               await new Promise((resolve) => setTimeout(resolve, 50)); // Reduced timeout
-            }
-            
-            logDebug(`Capturing page ${i + 1} as canvas`);
+          }
+          
+          logDebug(`Capturing page ${i + 1} as canvas`);
             
             // Optimize html2canvas settings for better performance
-            const canvas = await html2canvas(pageElement, {
+          const canvas = await html2canvas(pageElement, {
               scale: 1.5, // Reduced from 2 for better performance
-              useCORS: true,
-              logging: false,
-              backgroundColor: "#ffffff",
-              width: 490,
-              height: 635,
-              windowWidth: 490,
-              windowHeight: 635,
+            useCORS: true,
+            logging: false,
+            backgroundColor: "#ffffff",
+            width: 490,
+            height: 635,
+            windowWidth: 490,
+            windowHeight: 635,
               onclone: (document) => {
                 // Additional optimization if needed
                 const clonedElement = document.querySelector('.book-content') as HTMLElement;
@@ -151,19 +151,19 @@ export async function generatePDF(
               }
             });
             
-            if (i > 0) {
+          if (i > 0) {
               pdf.addPage();
             }
             
             const imgData = canvas.toDataURL("image/jpeg", 0.92); // Reduced quality for better performance
             pdf.addImage(imgData, "JPEG", 0, 0, 490, 635);
             
-            if (root) {
+          if (root) {
               root.unmount();
-            }
+          }
             
-            logDebug(`Page ${i + 1} added to PDF`);
-          } catch (pageError) {
+          logDebug(`Page ${i + 1} added to PDF`);
+        } catch (pageError) {
             logError(`Error rendering page ${i + 1}:`, pageError);
             // Add a simple error page instead
             if (i > 0) pdf.addPage();
