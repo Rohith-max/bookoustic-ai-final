@@ -28,10 +28,15 @@ export async function generatePDF(
       pagesProvided: !!pages
     });
 
+    // Use the same dimensions as the preview (320x450 for desktop, 280x400 for mobile)
+    const isMobile = window.innerWidth < 768;
+    const pageWidth = isMobile ? 280 : 320;
+    const pageHeight = isMobile ? 400 : 450;
+    
     const pdf = new jsPDF({
       orientation: "portrait",
       unit: "px",
-      format: [490, 635],
+      format: [pageWidth, pageHeight],
     })
 
     pdf.setProperties({
@@ -47,8 +52,8 @@ export async function generatePDF(
     tempContainer.style.position = "absolute"
     tempContainer.style.left = "-9999px"
     tempContainer.style.top = "-9999px"
-    tempContainer.style.width = "490px"
-    tempContainer.style.height = "635px"
+    tempContainer.style.width = `${pageWidth}px`
+    tempContainer.style.height = `${pageHeight}px`
     tempContainer.style.overflow = "hidden"
     document.body.appendChild(tempContainer)
 
@@ -86,15 +91,15 @@ export async function generatePDF(
           // Render the page content
             const pageElement = document.createElement("div");
             pageElement.className = "book-content";
-            pageElement.style.width = "490px";
-            pageElement.style.height = "635px";
+            pageElement.style.width = `${pageWidth}px`;
+            pageElement.style.height = `${pageHeight}px`;
             pageElement.style.position = "absolute";
             pageElement.style.left = "0";
             pageElement.style.top = "0";
             pageElement.style.boxShadow = "none";
             pageElement.style.border = "none";
             pageElement.style.background = "white";
-            pageElement.style.fontSize = "14pt";
+            pageElement.style.fontSize = isMobile ? "12pt" : "14pt";
             pageElement.style.lineHeight = "1.6";
             pageElement.style.margin = "0";
             pageElement.style.padding = "0";
@@ -138,10 +143,10 @@ export async function generatePDF(
             useCORS: true,
             logging: false,
             backgroundColor: "#ffffff",
-            width: 490,
-            height: 635,
-            windowWidth: 490,
-            windowHeight: 635,
+            width: pageWidth,
+            height: pageHeight,
+            windowWidth: pageWidth,
+            windowHeight: pageHeight,
               onclone: (document) => {
                 // Additional optimization if needed
                 const clonedElement = document.querySelector('.book-content') as HTMLElement;
@@ -155,8 +160,8 @@ export async function generatePDF(
               pdf.addPage();
             }
             
-            const imgData = canvas.toDataURL("image/jpeg", 0.92); // Reduced quality for better performance
-            pdf.addImage(imgData, "JPEG", 0, 0, 490, 635);
+            const imgData = canvas.toDataURL("image/jpeg", 0.95); // Increased quality for better PDF output
+            pdf.addImage(imgData, "JPEG", 0, 0, pageWidth, pageHeight);
             
           if (root) {
               root.unmount();
@@ -228,14 +233,18 @@ export async function generatePDF(
 // Utility to split HTML content into pages by rendered height (for PDF)
 function paginateByHeightPDF(paragraphs: string[], pageHeightPx: number, font: any, theme: any, chapterTitle?: string) {
   if (typeof window === "undefined") return [];
+  const isMobile = window.innerWidth < 768;
+  const pageWidth = isMobile ? 280 : 320;
+  const pageHeight = isMobile ? 400 : 450;
+  
   const tempDiv = document.createElement("div");
   tempDiv.style.position = "absolute";
   tempDiv.style.visibility = "hidden";
-  tempDiv.style.width = "210mm";
+  tempDiv.style.width = `${pageWidth}px`;
   tempDiv.style.fontFamily = `"${font.body}", serif`;
-  tempDiv.style.fontSize = "1.25rem";
-  tempDiv.style.lineHeight = "1.8";
-  tempDiv.style.padding = "2.5rem";
+  tempDiv.style.fontSize = isMobile ? "12pt" : "14pt";
+  tempDiv.style.lineHeight = "1.6";
+  tempDiv.style.padding = isMobile ? "1.5rem" : "2rem";
   tempDiv.style.background = theme.contentPage?.backgroundColor || "#fff";
   document.body.appendChild(tempDiv);
 
@@ -314,7 +323,8 @@ function generateBookPages(book: any, category: string): any[] {
     const { getFontForCategory, getThemeForCategory } = require("@/lib/book-fonts");
     const font = getFontForCategory(category);
     const theme = getThemeForCategory(category);
-    const pageHeightPx = 1122; // 297mm at 96dpi (A4)
+    const isMobile = window.innerWidth < 768;
+    const pageHeightPx = isMobile ? 400 : 450; // Match preview dimensions
 
     book.chapters.forEach((chapter: any, chapterIndex: number) => {
       // Skip empty chapters

@@ -738,7 +738,7 @@ export function BookReader({
                   {libraryTimer}s
                 </span>
               )}
-                  </Button>
+                    </Button>
               
               {/* Only show remove button if book has an ID (meaning it's from the library) */}
               {bookData._libraryId && (
