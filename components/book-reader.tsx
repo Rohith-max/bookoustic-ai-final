@@ -61,7 +61,6 @@ async function processChaptersInChunks(
   const pages: any[] = [];
   let processedChapters = 0;
 
-  // Validate chapters array
   if (!Array.isArray(chapters) || chapters.length === 0) {
     console.error("Invalid chapters data:", chapters);
     return pages;
@@ -82,35 +81,33 @@ async function processChaptersInChunks(
           continue;
         }
 
-        // Split content into pages with max words per page
         const chapterText = chapter.content;
-      // Split by paragraphs - preserve all paragraph breaks
+
       const paragraphs = chapterText.split(/\n{2,}/).map((p: string) => p.trim()).filter((p: string) => p);
       
-      // Skip if no paragraphs
+
       if (paragraphs.length === 0) {
         console.warn(`Chapter ${i} has no paragraphs:`, chapter);
-        continue;
-      }
-      
+          continue;
+        }
+
         let currentPageContent: string[] = [];
         let wordCount = 0;
         let pageCount = 0;
         
-      // Use a more conservative word limit to ensure content doesn't overflow into footer
-      // Reduce by 20% to leave space for the footer and prevent cutoffs
+
       const adjustedWordLimit = Math.floor(MAX_WORDS_PER_PAGE * 0.8);
       
-      // Process each paragraph - keep paragraphs intact to avoid cutting mid-paragraph
+
       for (let paraIndex = 0; paraIndex < paragraphs.length; paraIndex++) {
         const para = paragraphs[paraIndex];
         const paraWordCount = para.split(/\s+/).length;
         
-        // If this paragraph would exceed the page limit
+
         if (wordCount + paraWordCount > adjustedWordLimit) {
-          // If the page is empty but paragraph is very long, we need to split the paragraph
+
           if (currentPageContent.length === 0 && paraWordCount > adjustedWordLimit) {
-            // Split the paragraph into sentences
+ 
             const sentences = para.match(/[^.!?]+[.!?]+/g) || [para];
             let currentSentences: string[] = [];
             let sentenceWordCount = 0;
@@ -240,15 +237,13 @@ export function BookReader({
   const { user } = useUser();
   const { getToken } = useAuth();
   
-  // Initialize book data with ID preserved if it exists
   useEffect(() => {
     if (book) {
-      // If the book has an id property, it's from the library
-      // We need to preserve the id for deletion
+   
       const bookWithId = book.id ? { ...book, _libraryId: book.id } : book;
       setBookData(bookWithId);
     } else {
-      // Set a default empty book structure instead of null
+      
       setBookData({
         title: "Untitled Book",
         chapters: [],
@@ -257,7 +252,6 @@ export function BookReader({
     }
   }, [book]);
   
-  // Process book function
   const processBook = async () => {
     if (!bookData || !bookData.chapters || isProcessing) return;
 

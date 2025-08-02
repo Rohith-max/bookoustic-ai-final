@@ -56,10 +56,9 @@ export default function TableOfContents({ book, category, onNavigate }: TableOfC
               >
                 <span className="mr-1 text-[7px]" style={{ color: gold, opacity: 0.8 }}>▫</span>
                 <span className="flex-1 text-left" style={{ overflowWrap: 'anywhere' }}>
-                  Chapter {index + 1}: {chapterTitle}
+                Chapter {index + 1}: {chapterTitle}
+
                 </span>
-                <span className="flex-1 mx-2 border-t border-amber-400/30 border-dotted" />
-                <span className="ml-2 text-right toc-page-number text-[7px] ml-2" style={{ color: gold, fontWeight: 600, minWidth: 4, fontSize: 4 }}>{index + 1}</span>
               </div>
             );
           })}

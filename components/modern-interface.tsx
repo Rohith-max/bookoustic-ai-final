@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react";
-import { BookOpen, Sparkles, FileText, Wand2, Book, Download, History, ClipboardList, Trash2 } from "lucide-react";
+import { BookOpen, Sparkles, FileText, Wand2, Book, Download, History, ClipboardList, Trash2, Target, Palette, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -86,6 +86,7 @@ const accentOutlineButtonProps = {
 export default function ModernInterface() {
   const [activeTab, setActiveTab] = useState("create");
   const [bookDescription, setBookDescription] = useState("");
+  const [authorTone, setAuthorTone] = useState("");
   const [category, setCategory] = useState("");
   const [bookSize, setBookSize] = useState("medium");
   const [isGenerating, setIsGenerating] = useState(false);
@@ -108,7 +109,8 @@ export default function ModernInterface() {
   // Update the tabs array to remove History
   const tabs = [
     { id: "create", label: "Create", icon: Wand2 },
-    { id: "library", label: "Library", icon: FileText }
+    { id: "library", label: "Library", icon: FileText },
+    { id: "features", label: "Features", icon: Sparkles }
   ];
 
   const categories = [
@@ -128,11 +130,18 @@ export default function ModernInterface() {
 
   // Loader animation state
   const [showLandingLoader, setShowLandingLoader] = useState(true);
+  const [animationsPlayed, setAnimationsPlayed] = useState(false);
+  
   useEffect(() => {
     if (!isSignedIn) {
       setShowLandingLoader(true);
-      const timer = setTimeout(() => setShowLandingLoader(false), 3000);
+      const timer = setTimeout(() => {
+        setShowLandingLoader(false);
+        setAnimationsPlayed(true);
+      }, 3000);
       return () => clearTimeout(timer);
+    } else {
+      setAnimationsPlayed(true);
     }
   }, [isSignedIn]);
 
@@ -291,7 +300,7 @@ export default function ModernInterface() {
     }, 400);
     
     try {
-      const content = await generateBook(bookDescription, category.toLowerCase(), bookSize);
+      const content = await generateBook(bookDescription, category.toLowerCase(), bookSize, authorTone);
       
       clearInterval(progressInterval);
       setWritingProgress(100);
@@ -468,13 +477,16 @@ export default function ModernInterface() {
     setCurrentView("form");
     setBookContent(null);
     setWritingProgress(0);
+    setBookDescription("");
+    setAuthorTone("");
+    setCategory("");
+    setBookSize("medium");
     if (typeof window !== "undefined") {
       localStorage.removeItem("bookoustic_book_content");
     }
   };
 
-  // Landing Page Component
-  const LandingPage = ({ onLandingReady }: { onLandingReady?: () => void }) => {
+  const LandingPage = ({ onLandingReady, animationsPlayed }: { onLandingReady?: () => void, animationsPlayed: boolean }) => {
     useEffect(() => {
       if (onLandingReady) onLandingReady();
     }, []);
@@ -545,8 +557,8 @@ export default function ModernInterface() {
       <div className="min-h-screen bg-[#f6f8fc] relative overflow-hidden">
         {/* Floating background elements */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-100 rounded-full blur-3xl opacity-50 animate-fade-in" style={{ animationDelay: '0.1s' }} />
-          <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-blue-50 rounded-full blur-3xl opacity-40 animate-fade-in" style={{ animationDelay: '0.2s' }} />
+          <div className={`absolute top-1/4 left-1/4 w-96 h-96 bg-blue-100 rounded-full blur-3xl opacity-50 ${animationsPlayed ? 'animate-fade-in' : ''}`} style={{ animationDelay: '0.1s' }} />
+          <div className={`absolute bottom-1/4 right-1/4 w-80 h-80 bg-blue-50 rounded-full blur-3xl opacity-40 ${animationsPlayed ? 'animate-fade-in' : ''}`} style={{ animationDelay: '0.2s' }} />
         </div>
 
         <div className="relative z-10">
@@ -554,10 +566,10 @@ export default function ModernInterface() {
           <header className="px-4 sm:px-8 py-4 border-b border-gray-200 bg-white/80 backdrop-blur-xl">
             <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-0">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-600 rounded-lg animate-pop-in" style={{ animationDelay: '0.15s' }}>
+                <div className={`p-2 bg-blue-600 rounded-lg ${animationsPlayed ? 'animate-pop-in' : ''}`} style={{ animationDelay: '0.15s' }}>
                   <BookOpen className="w-6 h-6 text-white" />
                 </div>
-                <h1 className="text-2xl font-bold text-blue-600 animate-fade-up" style={{ animationDelay: '0.2s' }}>Bookoustic</h1>
+                <h1 className={`text-2xl font-bold text-blue-600 ${animationsPlayed ? 'animate-fade-up' : ''}`} style={{ animationDelay: '0.2s' }}>Bookoustic</h1>
               </div>
               
               {renderAuthButtons()}
@@ -568,25 +580,25 @@ export default function ModernInterface() {
           <main className="px-4 sm:px-8 py-8 sm:py-16">
             <div className="max-w-6xl mx-auto">
               <div className="flex flex-col items-center text-center">
-                <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 rounded-full text-blue-600 text-sm font-medium animate-pop-in" style={{ animationDelay: '0.25s' }}>
+                <div className={`inline-flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 rounded-full text-blue-600 text-sm font-medium ${animationsPlayed ? 'animate-pop-in' : ''}`} style={{ animationDelay: '0.25s' }}>
                   <Sparkles className="w-4 h-4" />
                   AI-Powered Book Creation
                 </div>
-                <h1 className="text-4xl sm:text-5xl md:text-7xl font-bold text-blue-600 leading-tight mt-6 animate-fade-up text-center" style={{ animationDelay: '0.3s' }}>
+                <h1 className={`text-4xl sm:text-5xl md:text-7xl font-bold text-blue-600 leading-tight mt-6 ${animationsPlayed ? 'animate-fade-up' : ''} text-center`} style={{ animationDelay: '0.3s' }}>
                   Create Books with
                   <br className="hidden sm:block" />
                   <span className="text-blue-700"> Artificial Intelligence</span>
                 </h1>
-                <p className="text-base sm:text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed mt-4 animate-fade-up text-center" style={{ animationDelay: '0.35s' }}>
+                <p className={`text-base sm:text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed mt-4 ${animationsPlayed ? 'animate-fade-up' : ''} text-center`} style={{ animationDelay: '0.35s' }}>
                   Transform your ideas into professional books in minutes. Our advanced AI analyzes your description 
                   and crafts compelling narratives with rich characters, engaging plots, and polished prose.
                 </p>
-                <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mt-8 animate-pop-in" style={{ animationDelay: '0.4s' }}>
+                <div className={`flex flex-col sm:flex-row gap-4 justify-center items-center mt-8 ${animationsPlayed ? 'animate-pop-in' : ''}`} style={{ animationDelay: '0.4s' }}>
                   {renderHeroButton()}
                 </div>
               </div>
               {/* Features Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-8 mb-8 sm:mb-16 mt-16 animate-fade-up" style={{ animationDelay: '0.5s' }}>
+              <div className={`grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-8 mb-8 sm:mb-16 mt-16 ${animationsPlayed ? 'animate-fade-up' : ''}`} style={{ animationDelay: '0.5s' }}>
                 <Card className="p-6 sm:p-8 bg-white border-gray-200 shadow-md hover:-translate-y-1 transition-all duration-300">
                   <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center mb-4 sm:mb-6">
                     <ClipboardList className="w-6 h-6 text-white" />
@@ -622,7 +634,7 @@ export default function ModernInterface() {
               </div>
 
               {/* CTA Section */}
-              <Card className="p-6 sm:p-12 bg-white border-gray-200 shadow-md text-center animate-pop-in" style={{ animationDelay: '0.6s' }}>
+              <Card className={`p-6 sm:p-12 bg-white border-gray-200 shadow-md text-center ${animationsPlayed ? 'animate-pop-in' : ''}`} style={{ animationDelay: '0.6s' }}>
                 <h2 className="text-2xl sm:text-3xl font-bold text-blue-600 mb-3 sm:mb-4">Ready to Write Your Story?</h2>
                 <p className="text-base sm:text-lg text-gray-600 mb-6 sm:mb-8 max-w-2xl mx-auto">
                   Join thousands of authors who have already transformed their ideas into published books with Bookoustic.
@@ -638,7 +650,7 @@ export default function ModernInterface() {
 
   // If user is not signed in, show landing page
   if (!isSignedIn) {
-    return <LandingPage />;
+            return <LandingPage animationsPlayed={animationsPlayed} />;
   }
 
   // Render user button safely
@@ -758,6 +770,23 @@ export default function ModernInterface() {
                             onChange={(e) => setBookDescription(e.target.value)}
                             className="min-h-32 bg-white border-gray-300 text-gray-800 resize-none focus:border-blue-400 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
                           />
+                        </div>
+
+                        {/* Author Tone */}
+                        <div className="space-y-3">
+                          <Label htmlFor="authorTone" className="text-lg font-semibold text-gray-800">
+                            Author's Writing Tone
+                          </Label>
+                          <Textarea
+                            id="authorTone"
+                            placeholder="Describe the author's writing style and tone. Examples: serious and academic, gritty and dark, supportive and encouraging, feminist and empowering, humorous and witty, poetic and lyrical, formal and professional, casual and conversational..."
+                            value={authorTone}
+                            onChange={(e) => setAuthorTone(e.target.value)}
+                            className="min-h-24 bg-white border-gray-300 text-gray-800 resize-none focus:border-blue-400 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+                          />
+                          <p className="text-sm text-gray-500">
+                            This will ensure the entire book maintains a consistent writing style and tone throughout.
+                          </p>
                         </div>
 
                         {/* Category Selection */}
@@ -899,35 +928,6 @@ export default function ModernInterface() {
                       >
                         Create New Book
                       </Button>
-                      
-                      <div className="flex gap-2">
-                        <Button
-                          onClick={() => setShowAddDialog(true)}
-                          {...accentOutlineButtonProps}
-                          className="border-blue-300 text-purple-600 hover:bg-purple-50"
-                        >
-                          Add to Library
-                        </Button>
-                        
-                        <Button
-                          onClick={handleDownloadPDF}
-                          disabled={isDownloading}
-                          {...accentButtonProps}
-                          className="bg-purple-600 hover:bg-purple-700"
-                        >
-                          {isDownloading ? (
-                            <div className="flex items-center gap-2">
-                              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                              Downloading...
-                            </div>
-                          ) : (
-                            <>
-                              <Download className="w-4 h-4 mr-2" />
-                              Download PDF
-                            </>
-                          )}
-                        </Button>
-                      </div>
                     </div>
                     
                     <BookReader 
@@ -1018,6 +1018,167 @@ export default function ModernInterface() {
                     ))}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Features Tab */}
+            {activeTab === "features" && (
+              <div className="space-y-6">
+                <div className="text-center space-y-4">
+                  <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 rounded-full text-blue-600 text-sm font-medium">
+                    <Sparkles className="w-4 h-4" />
+                    New Features Available
+                  </div>
+                  <h2 className="text-3xl font-bold text-blue-600">Explore New Features</h2>
+                  <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+                    Discover the latest enhancements to Bookoustic - from reading progress tracking to AI-powered cover generation.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {/* Reading Progress */}
+                  <Card className="p-6 hover:shadow-lg transition-all duration-300">
+                    <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center mb-4">
+                      <Target className="w-6 h-6 text-blue-600" />
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-800 mb-2">Reading Progress</h3>
+                    <p className="text-gray-600 mb-4">
+                      Track your reading progress with detailed statistics, time estimates, and chapter navigation.
+                    </p>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <span className="w-2 h-2 bg-blue-600 rounded-full"></span>
+                        Real-time progress tracking
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <span className="w-2 h-2 bg-blue-600 rounded-full"></span>
+                        Reading time estimates
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <span className="w-2 h-2 bg-blue-600 rounded-full"></span>
+                        Chapter-by-chapter progress
+                      </div>
+                    </div>
+                  </Card>
+
+                  {/* Cover Generator */}
+                  <Card className="p-6 hover:shadow-lg transition-all duration-300">
+                    <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center mb-4">
+                      <Palette className="w-6 h-6 text-purple-600" />
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-800 mb-2">AI Cover Generator</h3>
+                    <p className="text-gray-600 mb-4">
+                      Create stunning book covers with AI assistance. Multiple styles and color palettes available.
+                    </p>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <span className="w-2 h-2 bg-purple-600 rounded-full"></span>
+                        Multiple cover styles
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <span className="w-2 h-2 bg-purple-600 rounded-full"></span>
+                        Custom color palettes
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <span className="w-2 h-2 bg-purple-600 rounded-full"></span>
+                        Instant download
+                      </div>
+                    </div>
+                  </Card>
+
+                  {/* Chapter Generator */}
+                  <Card className="p-6 hover:shadow-lg transition-all duration-300">
+                    <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center mb-4">
+                      <BookOpen className="w-6 h-6 text-green-600" />
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-800 mb-2">Chapter Generator</h3>
+                    <p className="text-gray-600 mb-4">
+                      Generate individual chapters on demand with full editing capabilities and progress tracking.
+                    </p>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <span className="w-2 h-2 bg-green-600 rounded-full"></span>
+                        Individual chapter generation
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <span className="w-2 h-2 bg-green-600 rounded-full"></span>
+                        Full editing capabilities
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <span className="w-2 h-2 bg-green-600 rounded-full"></span>
+                        Word count tracking
+                      </div>
+                    </div>
+                  </Card>
+
+                  {/* EPUB Export */}
+                  <Card className="p-6 hover:shadow-lg transition-all duration-300">
+                    <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center mb-4">
+                      <FileText className="w-6 h-6 text-orange-600" />
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-800 mb-2">EPUB Export</h3>
+                    <p className="text-gray-600 mb-4">
+                      Export your books to EPUB format for compatibility with e-readers and reading apps.
+                    </p>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <span className="w-2 h-2 bg-orange-600 rounded-full"></span>
+                        E-reader compatible
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <span className="w-2 h-2 bg-orange-600 rounded-full"></span>
+                        Professional formatting
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <span className="w-2 h-2 bg-orange-600 rounded-full"></span>
+                        Metadata support
+                      </div>
+                    </div>
+                  </Card>
+
+                  {/* Theme Toggle */}
+                  <Card className="p-6 hover:shadow-lg transition-all duration-300">
+                    <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center mb-4">
+                      <Sun className="w-6 h-6 text-indigo-600" />
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-800 mb-2">Dark/Light Theme</h3>
+                    <p className="text-gray-600 mb-4">
+                      Switch between light and dark themes for optimal reading experience in any environment.
+                    </p>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <span className="w-2 h-2 bg-indigo-600 rounded-full"></span>
+                        Dark mode support
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <span className="w-2 h-2 bg-indigo-600 rounded-full"></span>
+                        Light mode support
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <span className="w-2 h-2 bg-indigo-600 rounded-full"></span>
+                        Smooth transitions
+                      </div>
+                    </div>
+                  </Card>
+
+                  {/* Try Features */}
+                  <Card className="p-6 hover:shadow-lg transition-all duration-300 bg-gradient-to-br from-blue-50 to-purple-50 border-blue-200">
+                    <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center mb-4">
+                      <Sparkles className="w-6 h-6 text-white" />
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-800 mb-2">Try All Features</h3>
+                    <p className="text-gray-600 mb-4">
+                      Experience all the new features in our comprehensive demo page.
+                    </p>
+                    <Button 
+                      onClick={() => window.open('/features-demo', '_blank')}
+                      className="w-full bg-blue-600 hover:bg-blue-700"
+                    >
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      View Full Demo
+                    </Button>
+                  </Card>
+                </div>
               </div>
             )}
 

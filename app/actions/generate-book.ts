@@ -16,10 +16,11 @@ function logError(...args: any[]) {
 export async function generateBook(
   prompt: string,
   category: string,
-  bookLength = "medium"
+  bookLength = "medium",
+  authorTone = ""
 ): Promise<any> {
   try {
-    logDebug('Starting book generation', { prompt, category, bookLength });
+    logDebug('Starting book generation', { prompt, category, bookLength, authorTone });
     
     // Check if API key is available
     if (!process.env.GROQ_API_KEY) {
@@ -130,6 +131,8 @@ Use "I" and "my" throughout the text, and write as if the narrator is sharing th
     const structurePrompt = `You are a professional book author specializing in ${category} books.
 Create a detailed outline for a book based on the following prompt: "${prompt}"
 
+${authorTone ? `IMPORTANT: The author's writing tone and style should be: ${authorTone}. This tone must be consistently maintained throughout the entire book.` : ''}
+
 Your outline MUST include:
 1. A compelling title and subtitle
 2. A proper book structure with EXACTLY ${expectedChapters} chapters
@@ -230,6 +233,8 @@ REMEMBER: Your entire response must be a valid JSON object that can be parsed wi
 You are now writing Chapter ${chapterIndex + 1}: "${chapterTitle.replace(/^Chapter \d+: /, "")}".
 
 This chapter should cover: ${chapterSummary}
+
+${authorTone ? `CRITICAL: Maintain the author's writing tone and style: ${authorTone}. This tone must be consistently applied throughout this chapter and the entire book.` : ''}
 
 ${styleGuidance}
 
