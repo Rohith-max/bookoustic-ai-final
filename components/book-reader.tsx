@@ -45,6 +45,7 @@ interface BookReaderProps {
   setPageContent?: (pages: any[]) => void
   onClose: () => void;
   onPreviewReady?: () => void;
+  libraryTimer?: number;
 }
 
 // Constants for page dimensions and limits
@@ -219,6 +220,7 @@ export function BookReader({
   isLoading,
   onClose,
   onPreviewReady,
+  libraryTimer = 0,
 }: BookReaderProps) {
   const [pages, setPages] = useState<any[]>([]);
   const [pageIndex, setPageIndex] = useState(0);
@@ -231,6 +233,7 @@ export function BookReader({
   const [showRemoveFromLibraryDialog, setShowRemoveFromLibraryDialog] = useState(false);
   const [isSavingToLibrary, setIsSavingToLibrary] = useState(false);
   const [isRemovingFromLibrary, setIsRemovingFromLibrary] = useState(false);
+  const [canAddToLibrary, setCanAddToLibrary] = useState(false);
   const [bookData, setBookData] = useState<any>(null);
   const bookContainerRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
@@ -279,6 +282,12 @@ export function BookReader({
 
       setPages(processedPages);
       setPageIndex(0);
+      setCanAddToLibrary(false);
+      
+      // Enable library addition after 7 seconds
+      setTimeout(() => {
+        setCanAddToLibrary(true);
+      }, 7000);
     } catch (err: any) {
       console.error('Error processing book:', err);
       setError(`Failed to process book: ${err.message || 'Unknown error'}`);
@@ -716,13 +725,20 @@ export function BookReader({
         <div className="book-view">
           <div className="book-controls mb-4 flex justify-between items-center">
             <div className="flex gap-2">
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => setShowAddToLibraryDialog(true)}
-              >
-                <Plus className="h-4 w-4 mr-1" /> Add to Library
-                    </Button>
+                          <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setShowAddToLibraryDialog(true)}
+              disabled={!canAddToLibrary}
+              className={!canAddToLibrary ? "opacity-50 cursor-not-allowed" : ""}
+            >
+              <Plus className="h-4 w-4 mr-1" /> Add to Library
+              {libraryTimer > 0 && (
+                <span className="ml-2 text-xs bg-gray-200 px-2 py-1 rounded">
+                  {libraryTimer}s
+                </span>
+              )}
+                  </Button>
               
               {/* Only show remove button if book has an ID (meaning it's from the library) */}
               {bookData._libraryId && (
@@ -792,8 +808,15 @@ export function BookReader({
               variant="outline" 
               size="sm"
               onClick={() => setShowAddToLibraryDialog(true)}
+              disabled={!canAddToLibrary}
+              className={!canAddToLibrary ? "opacity-50 cursor-not-allowed" : ""}
             >
               <Plus className="h-4 w-4 mr-1" /> Add to Library
+              {libraryTimer > 0 && (
+                <span className="ml-2 text-xs bg-gray-200 px-2 py-1 rounded">
+                  {libraryTimer}s
+                </span>
+              )}
                   </Button>
             
             {/* Only show remove button if book has an ID (meaning it's from the library) */}

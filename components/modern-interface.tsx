@@ -1,14 +1,13 @@
 "use client"
 
 import { useState, useEffect } from "react";
-import { BookOpen, Sparkles, FileText, Wand2, Book, Download, History, ClipboardList, Trash2, Target, Palette, Sun } from "lucide-react";
+import { BookOpen, Sparkles, FileText, Wand2, Book, Download, ClipboardList, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-// Import Clerk components conditionally
 import { SignInButton, SignUpButton, UserButton, useUser, useAuth } from '@clerk/nextjs';
 import { generateBook } from "@/app/actions/generate-book";
 import { generatePDF } from "@/lib/pdf-generator";
@@ -18,7 +17,6 @@ import dynamic from "next/dynamic";
 import { getSupabaseClient } from '@/lib/supabase';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
-// Replace the Clerk hooks with safe versions
 const useSafeUser = () => {
   try {
     return useUser();
@@ -105,12 +103,13 @@ export default function ModernInterface() {
   // 1. Add state for add-to-library confirmation
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [isSavingToLibrary, setIsSavingToLibrary] = useState(false);
+  const [canAddToLibrary, setCanAddToLibrary] = useState(false);
+  const [libraryTimer, setLibraryTimer] = useState(0);
 
-  // Update the tabs array to remove History
+  // Update the tabs array to remove Features and History
   const tabs = [
     { id: "create", label: "Create", icon: Wand2 },
-    { id: "library", label: "Library", icon: FileText },
-    { id: "features", label: "Features", icon: Sparkles }
+    { id: "library", label: "Library", icon: FileText }
   ];
 
   const categories = [
@@ -306,6 +305,20 @@ export default function ModernInterface() {
       setWritingProgress(100);
       setBookContent(content);
       setCurrentView("preview");
+      setCanAddToLibrary(false);
+      setLibraryTimer(7);
+      
+      // Enable library addition after 7 seconds with countdown
+      const timerInterval = setInterval(() => {
+        setLibraryTimer(prev => {
+          if (prev <= 1) {
+            clearInterval(timerInterval);
+            setCanAddToLibrary(true);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
       
       toast({
         title: "Book Generated",
@@ -481,6 +494,8 @@ export default function ModernInterface() {
     setAuthorTone("");
     setCategory("");
     setBookSize("medium");
+    setCanAddToLibrary(false);
+    setLibraryTimer(0);
     if (typeof window !== "undefined") {
       localStorage.removeItem("bookoustic_book_content");
     }
@@ -775,18 +790,15 @@ export default function ModernInterface() {
                         {/* Author Tone */}
                         <div className="space-y-3">
                           <Label htmlFor="authorTone" className="text-lg font-semibold text-gray-800">
-                            Author's Writing Tone
+                            Author Writing Style
                           </Label>
                           <Textarea
                             id="authorTone"
-                            placeholder="Describe the author's writing style and tone. Examples: serious and academic, gritty and dark, supportive and encouraging, feminist and empowering, humorous and witty, poetic and lyrical, formal and professional, casual and conversational..."
+                            placeholder="Describe the author's writing style and tone"
                             value={authorTone}
                             onChange={(e) => setAuthorTone(e.target.value)}
                             className="min-h-24 bg-white border-gray-300 text-gray-800 resize-none focus:border-blue-400 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
                           />
-                          <p className="text-sm text-gray-500">
-                            This will ensure the entire book maintains a consistent writing style and tone throughout.
-                          </p>
                         </div>
 
                         {/* Category Selection */}
@@ -930,13 +942,14 @@ export default function ModernInterface() {
                       </Button>
                     </div>
                     
-                    <BookReader 
-                      book={bookContent} 
-                      isLoading={false} 
-                      category={category} 
-                      setPageContent={setPageContent} 
-                      onClose={resetToForm}
-                    />
+                                         <BookReader 
+                       book={bookContent} 
+                       isLoading={false} 
+                       category={category} 
+                       setPageContent={setPageContent} 
+                       onClose={resetToForm}
+                       libraryTimer={libraryTimer}
+                     />
                   </div>
                 )}
               </div>
@@ -1021,177 +1034,7 @@ export default function ModernInterface() {
               </div>
             )}
 
-            {/* Features Tab */}
-            {activeTab === "features" && (
-              <div className="space-y-6">
-                <div className="text-center space-y-4">
-                  <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 rounded-full text-blue-600 text-sm font-medium">
-                    <Sparkles className="w-4 h-4" />
-                    New Features Available
-                  </div>
-                  <h2 className="text-3xl font-bold text-blue-600">Explore New Features</h2>
-                  <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-                    Discover the latest enhancements to Bookoustic - from reading progress tracking to AI-powered cover generation.
-                  </p>
-                </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {/* Reading Progress */}
-                  <Card className="p-6 hover:shadow-lg transition-all duration-300">
-                    <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center mb-4">
-                      <Target className="w-6 h-6 text-blue-600" />
-                    </div>
-                    <h3 className="text-xl font-bold text-gray-800 mb-2">Reading Progress</h3>
-                    <p className="text-gray-600 mb-4">
-                      Track your reading progress with detailed statistics, time estimates, and chapter navigation.
-                    </p>
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <span className="w-2 h-2 bg-blue-600 rounded-full"></span>
-                        Real-time progress tracking
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <span className="w-2 h-2 bg-blue-600 rounded-full"></span>
-                        Reading time estimates
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <span className="w-2 h-2 bg-blue-600 rounded-full"></span>
-                        Chapter-by-chapter progress
-                      </div>
-                    </div>
-                  </Card>
-
-                  {/* Cover Generator */}
-                  <Card className="p-6 hover:shadow-lg transition-all duration-300">
-                    <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center mb-4">
-                      <Palette className="w-6 h-6 text-purple-600" />
-                    </div>
-                    <h3 className="text-xl font-bold text-gray-800 mb-2">AI Cover Generator</h3>
-                    <p className="text-gray-600 mb-4">
-                      Create stunning book covers with AI assistance. Multiple styles and color palettes available.
-                    </p>
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <span className="w-2 h-2 bg-purple-600 rounded-full"></span>
-                        Multiple cover styles
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <span className="w-2 h-2 bg-purple-600 rounded-full"></span>
-                        Custom color palettes
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <span className="w-2 h-2 bg-purple-600 rounded-full"></span>
-                        Instant download
-                      </div>
-                    </div>
-                  </Card>
-
-                  {/* Chapter Generator */}
-                  <Card className="p-6 hover:shadow-lg transition-all duration-300">
-                    <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center mb-4">
-                      <BookOpen className="w-6 h-6 text-green-600" />
-                    </div>
-                    <h3 className="text-xl font-bold text-gray-800 mb-2">Chapter Generator</h3>
-                    <p className="text-gray-600 mb-4">
-                      Generate individual chapters on demand with full editing capabilities and progress tracking.
-                    </p>
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <span className="w-2 h-2 bg-green-600 rounded-full"></span>
-                        Individual chapter generation
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <span className="w-2 h-2 bg-green-600 rounded-full"></span>
-                        Full editing capabilities
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <span className="w-2 h-2 bg-green-600 rounded-full"></span>
-                        Word count tracking
-                      </div>
-                    </div>
-                  </Card>
-
-                  {/* EPUB Export */}
-                  <Card className="p-6 hover:shadow-lg transition-all duration-300">
-                    <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center mb-4">
-                      <FileText className="w-6 h-6 text-orange-600" />
-                    </div>
-                    <h3 className="text-xl font-bold text-gray-800 mb-2">EPUB Export</h3>
-                    <p className="text-gray-600 mb-4">
-                      Export your books to EPUB format for compatibility with e-readers and reading apps.
-                    </p>
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <span className="w-2 h-2 bg-orange-600 rounded-full"></span>
-                        E-reader compatible
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <span className="w-2 h-2 bg-orange-600 rounded-full"></span>
-                        Professional formatting
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <span className="w-2 h-2 bg-orange-600 rounded-full"></span>
-                        Metadata support
-                      </div>
-                    </div>
-                  </Card>
-
-                  {/* Theme Toggle */}
-                  <Card className="p-6 hover:shadow-lg transition-all duration-300">
-                    <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center mb-4">
-                      <Sun className="w-6 h-6 text-indigo-600" />
-                    </div>
-                    <h3 className="text-xl font-bold text-gray-800 mb-2">Dark/Light Theme</h3>
-                    <p className="text-gray-600 mb-4">
-                      Switch between light and dark themes for optimal reading experience in any environment.
-                    </p>
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <span className="w-2 h-2 bg-indigo-600 rounded-full"></span>
-                        Dark mode support
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <span className="w-2 h-2 bg-indigo-600 rounded-full"></span>
-                        Light mode support
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <span className="w-2 h-2 bg-indigo-600 rounded-full"></span>
-                        Smooth transitions
-                      </div>
-                    </div>
-                  </Card>
-
-                  {/* Try Features */}
-                  <Card className="p-6 hover:shadow-lg transition-all duration-300 bg-gradient-to-br from-blue-50 to-purple-50 border-blue-200">
-                    <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center mb-4">
-                      <Sparkles className="w-6 h-6 text-white" />
-                    </div>
-                    <h3 className="text-xl font-bold text-gray-800 mb-2">Try All Features</h3>
-                    <p className="text-gray-600 mb-4">
-                      Experience all the new features in our comprehensive demo page.
-                    </p>
-                    <Button 
-                      onClick={() => window.open('/features-demo', '_blank')}
-                      className="w-full bg-blue-600 hover:bg-blue-700"
-                    >
-                      <Sparkles className="w-4 h-4 mr-2" />
-                      View Full Demo
-                    </Button>
-                  </Card>
-                </div>
-              </div>
-            )}
-
-            {/* History Tab */}
-            {activeTab === "history" && (
-              <div className="text-center py-20">
-                <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                  <History className="w-8 h-8 text-white" />
-                </div>
-                <h3 className="text-2xl font-bold text-gray-800 mb-3">Generation History</h3>
-                <p className="text-gray-600">Your book generation history will appear here</p>
-              </div>
-            )}
           </div>
         </main>
       </div>
