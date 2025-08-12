@@ -52,13 +52,18 @@ interface BookReaderProps {
 // Constants for page dimensions and limits
 const PREVIEW_PAGE_WIDTH = 400
 const PREVIEW_PAGE_HEIGHT = 600
+const MOBILE_SCALE = 0.9
 const MAX_WORDS_PER_PAGE = 200
+const MOBILE_WORD_LIMIT_FACTOR = 0.35
+const MOBILE_TITLE_PAGE_WORD_PENALTY = 25
+const MOBILE_CHAR_LIMIT = 900
 const MAX_PAGES = 1000
 
 // Process chapters in chunks to avoid blocking
 async function processChaptersInChunks(
   chapters: any[],
-  onProgress: (progress: number) => void
+  onProgress: (progress: number) => void,
+  isMobileView: boolean = false
 ): Promise<any[]> {
   const pages: any[] = [];
   let processedChapters = 0;
@@ -95,16 +100,104 @@ async function processChaptersInChunks(
 
         let currentPageContent: string[] = [];
         let wordCount = 0;
+        let charCount = 0;
         let pageCount = 0;
         
 
-      const adjustedWordLimit = Math.floor(MAX_WORDS_PER_PAGE * 0.8);
+      let adjustedWordLimit = Math.floor(MAX_WORDS_PER_PAGE * (isMobileView ? MOBILE_WORD_LIMIT_FACTOR : 0.8));
+      if (isMobileView && pageCount === 0) {
+        // Title page tends to have a title and spacing; lower limit slightly
+        adjustedWordLimit = Math.max(80, adjustedWordLimit - MOBILE_TITLE_PAGE_WORD_PENALTY);
+      }
       
 
-      for (let paraIndex = 0; paraIndex < paragraphs.length; paraIndex++) {
+        for (let paraIndex = 0; paraIndex < paragraphs.length; paraIndex++) {
         const para = paragraphs[paraIndex];
         const paraWordCount = para.split(/\s+/).length;
-        
+        const paraCharCount = para.length;
+
+        // Strict mobile pagination using character limits to match visual layout
+        if (isMobileView) {
+          const charLimit = MOBILE_CHAR_LIMIT;
+
+          if (charCount + paraCharCount > charLimit) {
+            if (currentPageContent.length > 0) {
+              // Close current page and start a new one
+              pages.push({
+                type: 'chapter',
+                content: currentPageContent.join('\n\n'),
+                chapterTitle: pageCount === 0 ? chapter.title : '',
+                chapterIndex: i,
+                pageNumber: pages.length + 1,
+                continuesInNextPage: true,
+              });
+              pageCount++;
+              currentPageContent = [para];
+              charCount = paraCharCount;
+              wordCount = paraWordCount;
+            } else {
+              // Split this long paragraph into sentence chunks that fit
+              const sentences = para.match(/[^.!?]+[.!?]+/g) || [para];
+              let chunkSentences: string[] = [];
+              let chunkChars = 0;
+
+              const flushChunkAsPage = () => {
+                if (!chunkSentences.length) return;
+                pages.push({
+                  type: 'chapter',
+                  content: chunkSentences.join(' ').trim(),
+                  chapterTitle: pageCount === 0 ? chapter.title : '',
+                  chapterIndex: i,
+                  pageNumber: pages.length + 1,
+                  continuesInNextPage: true,
+                });
+                pageCount++;
+                chunkSentences = [];
+                chunkChars = 0;
+              };
+
+              for (const sentence of sentences) {
+                const sLen = sentence.trim().length + (chunkSentences.length > 0 ? 1 : 0);
+                if (chunkChars + sLen > charLimit) {
+                  flushChunkAsPage();
+                  // If a single sentence is still too large, force it as a page
+                  if (sentence.trim().length > charLimit) {
+                    pages.push({
+                      type: 'chapter',
+                      content: sentence.trim(),
+                      chapterTitle: pageCount === 0 ? chapter.title : '',
+                      chapterIndex: i,
+                      pageNumber: pages.length + 1,
+                      continuesInNextPage: true,
+                    });
+                    pageCount++;
+                  } else {
+                    chunkSentences.push(sentence.trim());
+                    chunkChars = sentence.trim().length;
+                  }
+                } else {
+                  chunkSentences.push(sentence.trim());
+                  chunkChars += sLen;
+                }
+              }
+
+              if (chunkSentences.length > 0) {
+                currentPageContent = [chunkSentences.join(' ').trim()];
+                charCount = chunkChars;
+                wordCount = currentPageContent[0].split(/\s+/).length;
+              } else {
+                currentPageContent = [];
+                charCount = 0;
+                wordCount = 0;
+              }
+            }
+          } else {
+            currentPageContent.push(para);
+            charCount += paraCharCount + 2; // account for spacing
+            wordCount += paraWordCount;
+          }
+          continue; // handled mobile branch
+        }
 
         if (wordCount + paraWordCount > adjustedWordLimit) {
 
@@ -175,9 +268,37 @@ async function processChaptersInChunks(
               continuesInNextPage: paraIndex < paragraphs.length - 1
             });
             
-            // Start new page with this paragraph
+            // Start new page with this paragraph; if still too long on mobile, split by sentences
+            if (isMobileView && paraWordCount > adjustedWordLimit) {
+              const sentences = para.match(/[^.!?]+[.!?]+/g) || [para];
+              let chunk: string[] = [];
+              let chunkWords = 0;
+              for (const s of sentences) {
+                const sw = s.trim().split(/\s+/).length;
+                if (chunkWords + sw > adjustedWordLimit) {
+                  // push current chunk as its own page
+                  pages.push({
+                    type: 'chapter',
+                    content: chunk.join(' '),
+                    chapterTitle: '',
+                    chapterIndex: i,
+                    pageNumber: pages.length + 1,
+                    continuesInNextPage: true
+                  });
+                  pageCount++;
+                  chunk = [s];
+                  chunkWords = sw;
+                } else {
+                  chunk.push(s);
+                  chunkWords += sw;
+                }
+              }
+              currentPageContent = chunk.length ? [chunk.join(' ')] : [];
+              wordCount = chunkWords;
+            } else {
             currentPageContent = [para];
             wordCount = paraWordCount;
+            }
             pageCount++;
           }
           } else {
@@ -241,6 +362,23 @@ export function BookReader({
   const { user } = useUser();
   const { getToken } = useAuth();
   const isMobile = useIsMobile();
+  const [pageScale, setPageScale] = useState(1);
+
+  useEffect(() => {
+    const computeScale = () => {
+      if (!isMobile) {
+        setPageScale(1);
+        return;
+      }
+      const containerWidth = bookContainerRef.current?.clientWidth || PREVIEW_PAGE_WIDTH;
+      const available = Math.max(0, containerWidth - 16);
+      const scale = Math.min(available / PREVIEW_PAGE_WIDTH, 1);
+      setPageScale(scale > 0 ? scale : 1);
+    };
+    computeScale();
+    window.addEventListener('resize', computeScale);
+    return () => window.removeEventListener('resize', computeScale);
+  }, [isMobile]);
   
   useEffect(() => {
     if (book) {
@@ -270,9 +408,13 @@ export function BookReader({
         firstChapter: bookData.chapters?.[0]
       });
 
-      const processedPages = await processChaptersInChunks(bookData.chapters, (progress) => {
+      const processedPages = await processChaptersInChunks(
+        bookData.chapters,
+        (progress) => {
         setProcessingProgress(progress);
-      });
+        },
+        isMobile
+      );
 
       console.log("Processed pages:", processedPages.length);
       
@@ -731,7 +873,7 @@ export function BookReader({
     if (pageIndex === 0) {
       return (
         <div className="book-view">
-          <div className="book-controls mb-4 flex justify-between items-center">
+          <div className="book-controls mb-4 flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-center">
             <div className="flex gap-2">
                           <Button 
               variant="outline" 
@@ -782,13 +924,21 @@ export function BookReader({
               disabled={isDownloading}
             >
               <Download className="h-4 w-4 mr-1" /> Download PDF
-            </Button>
-          </div>
+                    </Button>
+            </div>
           
           <div className="book-content flex justify-center">
-            <div style={{ width: PREVIEW_PAGE_WIDTH, height: PREVIEW_PAGE_HEIGHT }} className="book-page shadow-lg">
-              {renderPage(pages[0])}
-            </div>
+            {isMobile ? (
+              <div className="book-page-wrapper" style={{ width: PREVIEW_PAGE_WIDTH * pageScale, height: PREVIEW_PAGE_HEIGHT * pageScale }}>
+                <div className="book-page shadow-lg" style={{ width: PREVIEW_PAGE_WIDTH, height: PREVIEW_PAGE_HEIGHT, transform: `scale(${pageScale})`, transformOrigin: 'top left' }}>
+                  {renderPage(pages[0])}
+                </div>
+              </div>
+            ) : (
+              <div style={{ width: PREVIEW_PAGE_WIDTH, height: PREVIEW_PAGE_HEIGHT }} className="book-page shadow-lg">
+                {renderPage(pages[0])}
+              </div>
+            )}
           </div>
           
           {/* PDF progress indicator at bottom */}
@@ -811,9 +961,9 @@ export function BookReader({
     if (isMobile) {
       return (
         <div className="book-view">
-          <div className="book-controls mb-4 flex justify-between items-center">
+          <div className="book-controls mb-4 flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-center">
             <div className="flex gap-2">
-              <Button 
+            <Button 
                 variant="outline" 
                 size="sm"
                 onClick={() => setShowAddToLibraryDialog(true)}
@@ -842,21 +992,21 @@ export function BookReader({
               <Button 
                 variant="outline" 
                 size="sm" 
-                onClick={handlePrevPage} 
+              onClick={handlePrevPage} 
                 disabled={pageIndex === 0}
-              >
+            >
                 <ChevronLeft className="h-4 w-4" />
-              </Button>
+            </Button>
               <span className="mx-4">Page {pageIndex + 1} / {pages.length}</span>
-              <Button 
+            <Button 
                 variant="outline" 
                 size="sm" 
-                onClick={handleNextPage} 
+              onClick={handleNextPage} 
                 disabled={pageIndex >= pages.length - 1}
-              >
+            >
                 <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
+            </Button>
+          </div>
             <Button 
               variant="outline" 
               size="sm" 
@@ -867,8 +1017,10 @@ export function BookReader({
             </Button>
           </div>
           <div className="book-content flex justify-center">
-            <div style={{ width: PREVIEW_PAGE_WIDTH, height: PREVIEW_PAGE_HEIGHT }} className="book-page shadow-lg">
-              {renderPage(pages[pageIndex])}
+            <div className="book-page-wrapper" style={{ width: PREVIEW_PAGE_WIDTH * pageScale, height: PREVIEW_PAGE_HEIGHT * pageScale }}>
+              <div className="book-page shadow-lg" style={{ width: PREVIEW_PAGE_WIDTH, height: PREVIEW_PAGE_HEIGHT, transform: `scale(${pageScale})`, transformOrigin: 'top left' }}>
+                {renderPage(pages[pageIndex])}
+              </div>
             </div>
           </div>
           {isDownloading && (
@@ -889,7 +1041,7 @@ export function BookReader({
     // Two-page spread for all other pages (desktop)
     return (
       <div className="book-view">
-        <div className="book-controls mb-4 flex justify-between items-center">
+        <div className="book-controls mb-4 flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-center">
           <div className="flex gap-2">
             <Button 
               variant="outline" 
@@ -955,10 +1107,10 @@ export function BookReader({
         
         <div className="book-content flex justify-center">
           <div className="book-spread flex shadow-lg">
-            <div style={{ width: PREVIEW_PAGE_WIDTH, height: PREVIEW_PAGE_HEIGHT }} className="book-page left-page border-r">
+            <div className="book-page left-page border-r w-[400px] max-w-full aspect-[2/3]" style={{ height: isMobile ? undefined : PREVIEW_PAGE_HEIGHT, width: isMobile ? undefined : PREVIEW_PAGE_WIDTH }}>
               {renderPage(pages[pageIndex])}
             </div>
-            <div style={{ width: PREVIEW_PAGE_WIDTH, height: PREVIEW_PAGE_HEIGHT }} className="book-page right-page">
+            <div className="book-page right-page w-[400px] max-w-full aspect-[2/3]" style={{ height: isMobile ? undefined : PREVIEW_PAGE_HEIGHT, width: isMobile ? undefined : PREVIEW_PAGE_WIDTH }}>
               {pageIndex + 1 < pages.length && renderPage(pages[pageIndex + 1])}
             </div>
           </div>
@@ -983,7 +1135,7 @@ export function BookReader({
   return (
     <div 
       ref={bookContainerRef}
-      className="book-reader-container bg-background/80 backdrop-blur-sm rounded-xl p-8 shadow-xl border border-border/50 max-w-4xl mx-auto"
+      className="book-reader-container bg-background/80 backdrop-blur-sm rounded-xl p-4 sm:p-8 shadow-lg sm:shadow-xl border-0 sm:border border-border/50 max-w-4xl mx-auto"
     >
       {renderBookUI()}
       

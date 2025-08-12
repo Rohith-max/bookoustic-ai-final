@@ -42,6 +42,8 @@ export default function RootLayout({
       <html lang="en" suppressHydrationWarning>
         <head>
           <link rel="stylesheet" href={getAllFontsUrl()} />
+          <link rel="icon" href="/favicon.ico" sizes="any" />
+          <link rel="shortcut icon" href="/favicon.ico" />
         </head>
         <body>
           <ThemeProvider attribute="class" defaultTheme="light" disableTransitionOnChange>
