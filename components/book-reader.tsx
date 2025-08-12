@@ -21,7 +21,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 
-// Dynamically import components with loading states
 const BookCover = dynamic(() => import("./book-cover"), {
   loading: () => <div className="text-center py-12">Loading cover...</div>,
   ssr: false,
@@ -49,17 +48,14 @@ interface BookReaderProps {
   libraryTimer?: number;
 }
 
-// Constants for page dimensions and limits
 const PREVIEW_PAGE_WIDTH = 400
 const PREVIEW_PAGE_HEIGHT = 600
-const MOBILE_SCALE = 0.9
 const MAX_WORDS_PER_PAGE = 200
 const MOBILE_WORD_LIMIT_FACTOR = 0.35
 const MOBILE_TITLE_PAGE_WORD_PENALTY = 25
 const MOBILE_CHAR_LIMIT = 900
 const MAX_PAGES = 1000
 
-// Process chapters in chunks to avoid blocking
 async function processChaptersInChunks(
   chapters: any[],
   onProgress: (progress: number) => void,

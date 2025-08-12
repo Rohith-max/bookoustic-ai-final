@@ -4,7 +4,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { getAllFontsUrl } from "@/lib/book-fonts";
-import { TooltipProvider } from "@/components/ui/tooltip";
+// Removed TooltipProvider since tooltip UI is no longer used
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { ReactNode } from "react";
@@ -47,11 +47,9 @@ export default function RootLayout({
         </head>
         <body>
           <ThemeProvider attribute="class" defaultTheme="light" disableTransitionOnChange>
-            <TooltipProvider>
-              <Toaster />
-              <Sonner />
-              {children}
-            </TooltipProvider>
+            <Toaster />
+            <Sonner />
+            {children}
           </ThemeProvider>
         </body>
       </html>

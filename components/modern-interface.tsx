@@ -40,14 +40,12 @@ const BookReader = dynamic(() => import("@/components/book-reader").then(mod => 
   ssr: false,
 });
 
-// Accent color constants
 const ACCENT_COLOR = "#8b5cf6"; // purple-500
 const ACCENT_COLOR_HOVER = "#7c3aed"; // purple-600
 const ACCENT_TEXT_COLOR = "#fff";
 const ACCENT_TEXT_COLOR_HOVER = "#fff";
 const ACCENT_OUTLINE = `1px solid ${ACCENT_COLOR}`;
 
-// Helper for accent button props
 const accentButtonProps = {
   style: {
     backgroundColor: ACCENT_COLOR,
@@ -97,16 +95,13 @@ export default function ModernInterface() {
   const { isSignedIn, user } = useSafeUser();
   const { getToken } = useSafeAuth();
 
-  // 1. Add state for delete confirmation
   const [bookToDelete, setBookToDelete] = useState<any>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  // 1. Add state for add-to-library confirmation
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [isSavingToLibrary, setIsSavingToLibrary] = useState(false);
   const [canAddToLibrary, setCanAddToLibrary] = useState(false);
   const [libraryTimer, setLibraryTimer] = useState(0);
 
-  // Update the tabs array to remove Features and History
   const tabs = [
     { id: "create", label: "Create", icon: Wand2 },
     { id: "library", label: "Library", icon: FileText }
@@ -124,10 +119,8 @@ export default function ModernInterface() {
     { id: "long", label: "Novel", description: "15,000-25,000 words", wordCount: "~20K words" }
   ];
 
-  // Add state for library books
   const [libraryBooks, setLibraryBooks] = useState<any[] | null>(null);
 
-  // Loader animation state
   const [showLandingLoader, setShowLandingLoader] = useState(true);
   const [animationsPlayed, setAnimationsPlayed] = useState(false);
   
@@ -144,7 +137,6 @@ export default function ModernInterface() {
     }
   }, [isSignedIn]);
 
-  // Load book content from localStorage on mount
   useEffect(() => {
     if (typeof window !== "undefined") {
       const savedBook = localStorage.getItem("bookoustic_book_content")
@@ -155,17 +147,14 @@ export default function ModernInterface() {
     }
   }, []);
 
-  // Save book content to localStorage when it changes
   useEffect(() => {
     if (typeof window !== "undefined" && bookContent) {
       localStorage.setItem("bookoustic_book_content", JSON.stringify(bookContent))
     }
   }, [bookContent]);
 
-  // Add a function to load library books
   const loadLibraryBooks = async () => {
     setLibraryBooks(null);
-    // First try to load from Supabase if user is signed in
     if (user) {
       try {
         const token = await getToken({ template: 'supabase' })
@@ -191,7 +180,6 @@ export default function ModernInterface() {
       }
     }
     
-    // Fallback to localStorage
     try {
       if (typeof window !== "undefined") {
         const savedBooks = JSON.parse(localStorage.getItem("bookoustic_saved_books") || "[]");
@@ -203,21 +191,18 @@ export default function ModernInterface() {
     }
   };
 
-  // Add useEffect to load library books when the tab changes
   useEffect(() => {
     if (activeTab === "library") {
       loadLibraryBooks();
     }
   }, [activeTab, user]);
 
-  // Add function to load a book from the library
   const loadBookFromLibrary = (book: any) => {
     setBookContent(book.book_data);
     setCurrentView("preview");
     setActiveTab("create");
   };
 
-  // Add function to delete a book from the library
   const deleteBookFromLibrary = async (bookId: string, isLocalBook: boolean = false) => {
     if (!isLocalBook && user) {
       try {
@@ -570,14 +555,12 @@ export default function ModernInterface() {
 
     return (
       <div className="min-h-screen bg-[#f6f8fc] relative overflow-hidden">
-        {/* Floating background elements */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className={`absolute top-1/4 left-1/4 w-96 h-96 bg-blue-100 rounded-full blur-3xl opacity-50 ${animationsPlayed ? 'animate-fade-in' : ''}`} style={{ animationDelay: '0.1s' }} />
           <div className={`absolute bottom-1/4 right-1/4 w-80 h-80 bg-blue-50 rounded-full blur-3xl opacity-40 ${animationsPlayed ? 'animate-fade-in' : ''}`} style={{ animationDelay: '0.2s' }} />
         </div>
 
         <div className="relative z-10">
-          {/* Header */}
           <header className="px-4 sm:px-8 py-4 border-b border-gray-200 bg-white/80 backdrop-blur-xl">
             <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-0">
               <div className="flex items-center gap-3">
@@ -591,7 +574,6 @@ export default function ModernInterface() {
             </div>
           </header>
 
-          {/* Hero Section */}
           <main className="px-4 sm:px-8 py-8 sm:py-16">
             <div className="max-w-6xl mx-auto">
               <div className="flex flex-col items-center text-center">
@@ -612,7 +594,6 @@ export default function ModernInterface() {
                   {renderHeroButton()}
                 </div>
               </div>
-              {/* Features Grid */}
               <div className={`grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-8 mb-8 sm:mb-16 mt-16 ${animationsPlayed ? 'animate-fade-up' : ''}`} style={{ animationDelay: '0.5s' }}>
                 <Card className="p-6 sm:p-8 bg-white border-gray-200 shadow-md hover:-translate-y-1 transition-all duration-300">
                   <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center mb-4 sm:mb-6">
@@ -648,7 +629,6 @@ export default function ModernInterface() {
                 </Card>
               </div>
 
-              {/* CTA Section */}
               <Card className={`p-6 sm:p-12 bg-white border-gray-200 shadow-md text-center ${animationsPlayed ? 'animate-pop-in' : ''}`} style={{ animationDelay: '0.6s' }}>
                 <h2 className="text-2xl sm:text-3xl font-bold text-blue-600 mb-3 sm:mb-4">Ready to Write Your Story?</h2>
                 <p className="text-base sm:text-lg text-gray-600 mb-6 sm:mb-8 max-w-2xl mx-auto">
@@ -663,12 +643,10 @@ export default function ModernInterface() {
     );
   };
 
-  // If user is not signed in, show landing page
   if (!isSignedIn) {
             return <LandingPage animationsPlayed={animationsPlayed} />;
   }
 
-  // Render user button safely
   const renderUserButton = () => {
     try {
       return (
