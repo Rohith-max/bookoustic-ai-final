@@ -6,8 +6,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-import { useIsMobile } from "@/hooks/use-mobile";
-
 const Index = () => {
   const [activeTab, setActiveTab] = useState("create");
   const [bookDescription, setBookDescription] = useState("");
@@ -19,10 +17,6 @@ const Index = () => {
   const [generatedContent, setGeneratedContent] = useState("");
   const [writingProgress, setWritingProgress] = useState(0);
   const [isSignedIn, setIsSignedIn] = useState(false); // For demo purposes
-  const isMobile = useIsMobile();
-  
-  // Debug mobile detection
-  console.log('Mobile detection:', isMobile, 'Window width:', typeof window !== 'undefined' ? window.innerWidth : 'SSR');
 
   const tabs = [
     { id: "create", label: "Create", icon: Wand2 },
@@ -417,9 +411,9 @@ The characters face challenges that test their resolve, while the plot weaves to
                   <div className="space-y-8 animate-fade-up">
                     {/* Header with toggle */}
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                      <div className="space-y-2">
-                        <h2 className="text-2xl sm:text-3xl font-bold text-gradient">Your Book is Ready!</h2>
-                        <p className="text-sm sm:text-base text-muted-foreground">
+                      <div className="space-y-2 w-full sm:w-auto">
+                        <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-gradient">Your Book is Ready!</h2>
+                        <p className="text-xs sm:text-sm md:text-base text-muted-foreground">
                           {bookSizes.find(s => s.id === bookSize)?.label} • {category} • 
                           {bookSizes.find(s => s.id === bookSize)?.wordCount}
                         </p>
@@ -428,7 +422,7 @@ The characters face challenges that test their resolve, while the plot weaves to
                       <Button
                         variant="outline"
                         onClick={resetToForm}
-                        className="flex items-center gap-2 border-border/50 hover:border-primary/50 cursor-pointer transition-all duration-300 w-full sm:w-auto"
+                        className="flex items-center gap-2 border-border/50 hover:border-primary/50 cursor-pointer transition-all duration-300 w-full sm:w-auto text-sm sm:text-base"
                       >
                         <RotateCcw className="w-4 h-4" />
                         Create New
@@ -440,16 +434,17 @@ The characters face challenges that test their resolve, while the plot weaves to
                       <div className="relative">
                         {/* Book-like Preview with responsive design */}
                         <div className="flex justify-center mb-6">
-                          {/* Debug indicator */}
-                          {process.env.NODE_ENV === 'development' && (
+                          <div className="relative flex flex-col lg:flex-row shadow-2xl items-center lg:items-stretch">
+                            {/* Debug info */}
                             <div className="absolute top-0 left-0 bg-red-500 text-white px-2 py-1 text-xs z-50">
-                              Mobile: {isMobile ? 'Yes' : 'No'} ({typeof window !== 'undefined' ? window.innerWidth : 'SSR'}px)
+                              FORCED MOBILE LAYOUT
                             </div>
-                          )}
-                          <div className={`relative flex shadow-2xl ${isMobile ? 'flex-col items-center' : ''}`}>
                             {/* Left page - A4 proportions (210 x 297mm ≈ 3:4.2 aspect ratio) */}
-                            <div className={`bg-card border border-border/50 shadow-elegant relative overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-glow ${isMobile ? 'rounded-lg mb-4' : 'rounded-l-lg'}`} 
-                                 style={{ width: isMobile ? '280px' : '320px', height: isMobile ? '400px' : '450px' }}>
+                            <div className="bg-card border border-border/50 shadow-elegant relative overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-glow rounded-lg lg:rounded-l-lg lg:rounded-r-none mb-4 lg:mb-0" 
+                                 style={{ 
+                                   width: '280px', 
+                                   height: '400px'
+                                 }}>
                               <div className="absolute inset-0 bg-gradient-to-br from-background via-background to-background/95" />
                               <div className="relative p-6 h-full flex flex-col">
                                 <div className="text-center mb-4 pb-3 border-b border-border/30">
@@ -457,7 +452,7 @@ The characters face challenges that test their resolve, while the plot weaves to
                                   <p className="text-sm text-muted-foreground uppercase tracking-wide">{category}</p>
                                 </div>
                                 <div className="flex-1 text-sm text-foreground leading-relaxed">
-                                  {generatedContent.slice(0, isMobile ? 200 : 300)}...
+                                  {generatedContent.slice(0, 200)}...
                                 </div>
                                 <div className="text-center text-xs text-muted-foreground border-t border-border/30 pt-2 mt-3">
                                   — 1 —
@@ -468,30 +463,31 @@ The characters face challenges that test their resolve, while the plot weaves to
                             </div>
                             
                             {/* Right page - Only show on desktop */}
-                            {!isMobile && (
-                              <>
-                                <div className="bg-card border-l-0 border border-border/50 rounded-r-lg shadow-elegant relative overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-glow" style={{ width: '320px', height: '450px' }}>
-                                  <div className="absolute inset-0 bg-gradient-to-bl from-background via-background to-background/95" />
-                                  <div className="relative p-8 h-full flex flex-col">
-                                    <div className="flex-1 text-sm text-foreground leading-relaxed">
-                                      {generatedContent.slice(300, 600)}...
-                                    </div>
-                                    <div className="text-center text-xs text-muted-foreground border-t border-border/30 pt-3 mt-4">
-                                      — 2 —
-                                    </div>
-                                  </div>
-                                  {/* Page texture */}
-                                  <div className="absolute inset-0 opacity-5 bg-gradient-to-bl from-transparent via-muted to-transparent pointer-events-none" />
+                            <div className="hidden lg:block bg-card border-l-0 border border-border/50 rounded-r-lg shadow-elegant relative overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-glow" 
+                                 style={{ 
+                                   width: '320px', 
+                                   height: '450px'
+                                 }}
+                            >
+                              <div className="absolute inset-0 bg-gradient-to-bl from-background via-background to-background/95" />
+                              <div className="relative p-8 h-full flex flex-col">
+                                <div className="flex-1 text-sm text-foreground leading-relaxed">
+                                  {generatedContent.slice(300, 600)}...
                                 </div>
-                                
-                                {/* Book binding shadow - Only on desktop */}
-                                <div className="absolute top-0 left-1/2 transform -translate-x-px w-2 h-full bg-gradient-to-b from-border/30 via-border/70 to-border/30 shadow-lg" />
-                              </>
-                            )}
+                                <div className="text-center text-xs text-muted-foreground border-t border-border/30 pt-3 mt-4">
+                                  — 2 —
+                                </div>
+                              </div>
+                              {/* Page texture */}
+                              <div className="absolute inset-0 opacity-5 bg-gradient-to-bl from-transparent via-muted to-transparent pointer-events-none" />
+                            </div>
+                            
+                            {/* Book binding shadow - Only on desktop */}
+                            <div className="hidden lg:block absolute top-0 left-1/2 transform -translate-x-px w-2 h-full bg-gradient-to-b from-border/30 via-border/70 to-border/30 shadow-lg" />
                             
                             {/* Book depth effect */}
-                            <div className={`absolute -bottom-2 -right-2 w-full h-full bg-border/20 ${isMobile ? 'rounded-lg' : 'rounded-r-lg'} -z-10`} />
-                            <div className={`absolute -bottom-1 -right-1 w-full h-full bg-border/10 ${isMobile ? 'rounded-lg' : 'rounded-r-lg'} -z-20`} />
+                            <div className="absolute -bottom-2 -right-2 w-full h-full bg-border/20 rounded-lg lg:rounded-r-lg -z-10" />
+                            <div className="absolute -bottom-1 -right-1 w-full h-full bg-border/10 rounded-lg lg:rounded-r-lg -z-20" />
                           </div>
                         </div>
                       </div>
@@ -518,11 +514,11 @@ The characters face challenges that test their resolve, while the plot weaves to
                     </div>
 
                     {/* Content Overview */}
-                    <Card className="p-8 bg-gradient-card border-border/50 shadow-card backdrop-blur-xl">
+                    <Card className="p-4 sm:p-8 bg-gradient-card border-border/50 shadow-card backdrop-blur-xl">
                       <div className="space-y-6">
-                        <h3 className="text-xl font-semibold text-foreground">Content Overview</h3>
+                        <h3 className="text-lg sm:text-xl font-semibold text-foreground">Content Overview</h3>
                         
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
                           <div className="text-center p-4 bg-background/50 rounded-lg border border-border/30">
                             <div className="text-2xl font-bold text-primary mb-1">
                               {bookSizes.find(s => s.id === bookSize)?.wordCount}

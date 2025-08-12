@@ -12,7 +12,10 @@ import { ReactNode } from "react";
 export const metadata: Metadata = {
   title: "Bookoustic - AI Book Author",
   description: "Generate professional books with AI",
-  generator: "v0.dev"
+  generator: "Bookoustic",
+  icons: {
+    icon: '/favicon.ico',
+  },
 };
 
 // Safe ClerkProvider component

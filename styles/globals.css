@@ -133,3 +133,70 @@ body {
 .animate-float-mote {
   animation: float-mote 4.5s ease-in-out infinite;
 }
+
+/* Mobile book layout - force single page on mobile */
+@media (max-width: 767px) {
+  .book-preview-container {
+    flex-direction: column !important;
+    align-items: center !important;
+  }
+  
+  .book-page-left {
+    border-radius: 0.5rem !important;
+    margin-bottom: 1rem !important;
+    margin-right: 0 !important;
+  }
+  
+  .book-page-right {
+    display: none !important;
+  }
+  
+  .book-binding {
+    display: none !important;
+  }
+  
+  .book-depth {
+    border-radius: 0.5rem !important;
+  }
+}
+
+/* Tablet and desktop book layout - show two pages */
+@media (min-width: 768px) {
+  .book-preview-container {
+    flex-direction: row !important;
+    align-items: stretch !important;
+  }
+  
+  .book-page-left {
+    border-radius: 0.5rem 0 0 0.5rem !important;
+    margin-bottom: 0 !important;
+    margin-right: 0 !important;
+  }
+  
+  .book-page-right {
+    display: block !important;
+  }
+  
+  .book-binding {
+    display: block !important;
+  }
+  
+  .book-depth {
+    border-radius: 0 0.5rem 0.5rem 0 !important;
+  }
+}
+
+/* Additional mobile debugging */
+@media (max-width: 767px) {
+  .book-preview-container::before {
+    content: "MOBILE MODE" !important;
+    position: absolute !important;
+    top: -30px !important;
+    left: 0 !important;
+    background: red !important;
+    color: white !important;
+    padding: 5px !important;
+    font-size: 12px !important;
+    z-index: 9999 !important;
+  }
+}
