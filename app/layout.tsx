@@ -15,7 +15,10 @@ export const metadata: Metadata = {
   generator: "Bookoustic",
   icons: {
     icon: '/favicon.ico',
+    shortcut: '/favicon.ico',
+    apple: '/icon-192.png',
   },
+  manifest: '/manifest.webmanifest',
 };
 
 // Safe ClerkProvider component
@@ -42,8 +45,6 @@ export default function RootLayout({
       <html lang="en" suppressHydrationWarning>
         <head>
           <link rel="stylesheet" href={getAllFontsUrl()} />
-          <link rel="icon" href="/favicon.ico" sizes="any" />
-          <link rel="shortcut icon" href="/favicon.ico" />
         </head>
         <body>
           <ThemeProvider attribute="class" defaultTheme="light" disableTransitionOnChange>
