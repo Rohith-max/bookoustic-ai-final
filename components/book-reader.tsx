@@ -9,6 +9,7 @@ import { generatePDF } from "@/lib/pdf-generator"
 import { useToast } from "@/hooks/use-toast"
 import { getSupabaseClient } from "@/lib/supabase"
 import { useUser, useAuth } from "@clerk/nextjs"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { 
   AlertDialog,
   AlertDialogAction,
@@ -239,6 +240,7 @@ export function BookReader({
   const { toast } = useToast();
   const { user } = useUser();
   const { getToken } = useAuth();
+  const isMobile = useIsMobile();
   
   useEffect(() => {
     if (book) {
@@ -662,14 +664,20 @@ export function BookReader({
   }, [pageIndex, pages.length]);
 
   const handleNextPage = () => {
-    if (pageIndex < pages.length - 2) {
-      setPageIndex(prev => prev + 2);
+    if (isMobile) {
+      if (pageIndex < pages.length - 1) {
+        setPageIndex(prev => prev + 1);
+      }
+    } else {
+      if (pageIndex < pages.length - 2) {
+        setPageIndex(prev => prev + 2);
+      }
     }
   };
 
   const handlePrevPage = () => {
     if (pageIndex > 0) {
-      setPageIndex(prev => prev - 2);
+      setPageIndex(prev => prev - (isMobile ? 1 : 2));
     }
   };
 
@@ -799,7 +807,86 @@ export function BookReader({
       );
     }
 
-    // Two-page spread for all other pages
+    // For non-cover pages, render single page on mobile, two-page spread on desktop
+    if (isMobile) {
+      return (
+        <div className="book-view">
+          <div className="book-controls mb-4 flex justify-between items-center">
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setShowAddToLibraryDialog(true)}
+                disabled={!canAddToLibrary}
+                className={!canAddToLibrary ? "opacity-50 cursor-not-allowed" : ""}
+              >
+                <Plus className="h-4 w-4 mr-1" /> Add to Library
+                {libraryTimer > 0 && (
+                  <span className="ml-2 text-xs bg-gray-200 px-2 py-1 rounded">
+                    {libraryTimer}s
+                  </span>
+                )}
+              </Button>
+              {bookData._libraryId && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setShowRemoveFromLibraryDialog(true)}
+                  className="text-red-500 hover:bg-red-50 hover:text-red-600"
+                >
+                  <Trash2 className="h-4 w-4 mr-1" /> Remove
+                </Button>
+              )}
+            </div>
+            <div className="flex items-center">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handlePrevPage} 
+                disabled={pageIndex === 0}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="mx-4">Page {pageIndex + 1} / {pages.length}</span>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleNextPage} 
+                disabled={pageIndex >= pages.length - 1}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleDownloadPDF} 
+              disabled={isDownloading}
+            >
+              <Download className="h-4 w-4 mr-1" /> Download PDF
+            </Button>
+          </div>
+          <div className="book-content flex justify-center">
+            <div style={{ width: PREVIEW_PAGE_WIDTH, height: PREVIEW_PAGE_HEIGHT }} className="book-page shadow-lg">
+              {renderPage(pages[pageIndex])}
+            </div>
+          </div>
+          {isDownloading && (
+            <div className="pdf-progress-bar mt-4 p-4 bg-background/80 rounded-lg border border-border/50">
+              <div className="text-sm mb-2">Creating PDF... {pdfProgress}%</div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div 
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                  style={{ width: `${pdfProgress}%` }}
+                ></div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // Two-page spread for all other pages (desktop)
     return (
       <div className="book-view">
         <div className="book-controls mb-4 flex justify-between items-center">
