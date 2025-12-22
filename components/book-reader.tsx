@@ -352,6 +352,7 @@ export function BookReader({
   const [isSavingToLibrary, setIsSavingToLibrary] = useState(false);
   const [isRemovingFromLibrary, setIsRemovingFromLibrary] = useState(false);
   const [canAddToLibrary, setCanAddToLibrary] = useState(false);
+  const [bookExistsInLibrary, setBookExistsInLibrary] = useState(false);
   const [bookData, setBookData] = useState<any>(null);
   const bookContainerRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
@@ -427,12 +428,43 @@ export function BookReader({
       // Enable library addition after 7 seconds
       setTimeout(() => {
         setCanAddToLibrary(true);
+        checkBookExistsInLibrary();
       }, 7000);
     } catch (err: any) {
       console.error('Error processing book:', err);
       setError(`Failed to process book: ${err.message || 'Unknown error'}`);
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  // Check if book exists in library
+  const checkBookExistsInLibrary = async () => {
+    if (!bookData || !user) return;
+    
+    try {
+      const token = (await getToken({ template: 'supabase' }).catch(() => undefined)) || 
+                    (await getToken().catch(() => undefined)) || 
+                    undefined;
+      
+      if (!token) return;
+      
+      const supabase = getSupabaseClient(token);
+      
+      const { data: existingBooks, error } = await supabase
+        .from("book_generations")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("book_title", bookData.title)
+        .limit(1);
+        
+      if (!error && existingBooks && existingBooks.length > 0) {
+        setBookExistsInLibrary(true);
+      } else {
+        setBookExistsInLibrary(false);
+      }
+    } catch (err) {
+      console.error("Error checking book existence:", err);
     }
   };
 
@@ -544,6 +576,9 @@ export function BookReader({
         description: "Book has been added to your library.",
       });
       
+      // Update the existence check
+      setBookExistsInLibrary(true);
+      
     } catch (err: any) {
       console.error("Error saving to library:", err);
       toast({
@@ -596,9 +631,12 @@ export function BookReader({
       }
       
       toast({
-        title: "Book Removed",
+        title: "Removed",
         description: "Book has been removed from your library.",
       });
+      
+      // Update the existence check
+      setBookExistsInLibrary(false);
       
       // Close the book reader after successful removal
       if (onClose) {
@@ -875,11 +913,11 @@ export function BookReader({
               variant="outline" 
               size="sm"
               onClick={() => setShowAddToLibraryDialog(true)}
-              disabled={!canAddToLibrary}
-              className={!canAddToLibrary ? "opacity-50 cursor-not-allowed" : ""}
+              disabled={!canAddToLibrary || bookExistsInLibrary}
+              className={(!canAddToLibrary || bookExistsInLibrary) ? "opacity-50 cursor-not-allowed" : ""}
             >
-              <Plus className="h-4 w-4 mr-1" /> Add to Library
-              {libraryTimer > 0 && (
+              <Plus className="h-4 w-4 mr-1" /> {bookExistsInLibrary ? "Book Exists in Library" : "Add to Library"}
+              {libraryTimer > 0 && !bookExistsInLibrary && (
                 <span className="ml-2 text-xs bg-gray-200 px-2 py-1 rounded">
                   {libraryTimer}s
                 </span>

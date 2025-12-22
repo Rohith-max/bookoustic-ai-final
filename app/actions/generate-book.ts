@@ -18,14 +18,14 @@ export async function generateBook(
   category: string,
   bookLength = "medium",
   authorTone = ""
-): Promise<any> {
+): Promise<{ success: boolean; book?: any; error?: string }> {
   try {
     logDebug('Starting book generation', { prompt, category, bookLength, authorTone });
     
     // Check if API key is available
     if (!process.env.GROQ_API_KEY) {
       logError('GROQ_API_KEY is not defined in environment variables');
-      throw new Error("GROQ_API_KEY is not defined in environment variables")
+      return { success: false, error: "GROQ_API_KEY is not defined in environment variables" };
     }
 
     // Determine chapter count, content length, and token allocation based on book length
@@ -179,7 +179,7 @@ REMEMBER: Your entire response must be a valid JSON object that can be parsed wi
       });
     } catch (error) {
       logError("Failed to generate book structure:", error);
-      throw new Error("Failed to generate book structure. Please try again.");
+      return { success: false, error: "Failed to generate book structure. Please try again." };
     }
     
     // Create empty chapters array with the structure
@@ -343,10 +343,10 @@ IMPORTANT: ONLY output the raw text content for this chapter. Do NOT include any
         total + (chapter.content ? chapter.content.split(/\s+/).length : 0), 0)
     });
 
-    return bookContent;
-  } catch (error) {
+    return { success: true, book: bookContent };
+  } catch (error: any) {
     logError("Error generating book:", error);
-    throw error;
+    return { success: false, error: error.message || "Failed to generate book" };
   }
 }
 

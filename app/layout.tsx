@@ -14,8 +14,8 @@ export const metadata: Metadata = {
   description: "Generate professional books with AI",
   generator: "Bookoustic",
   icons: {
-    icon: '/favicon.ico',
-    shortcut: '/favicon.ico',
+    icon: '/bookicon.ico',
+    shortcut: '/bookicon.ico',
     apple: '/icon-192.png',
   },
   manifest: '/manifest.webmanifest',
@@ -42,11 +42,13 @@ export default function RootLayout({
 }) {
   return (
     <SafeClerkProvider>
-      <html lang="en" suppressHydrationWarning>
+      <html lang="en" suppressHydrationWarning className="h-full">
         <head>
+          <link rel="icon" href="/bookicon.ico" type="image/x-icon" />
+          <link rel="shortcut icon" href="/bookicon.ico" type="image/x-icon" />
           <link rel="stylesheet" href={getAllFontsUrl()} />
         </head>
-        <body>
+        <body className="h-full">
           <ThemeProvider attribute="class" defaultTheme="light" disableTransitionOnChange>
             <Toaster />
             <Sonner />

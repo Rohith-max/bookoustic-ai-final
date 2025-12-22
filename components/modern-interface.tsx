@@ -1,13 +1,11 @@
 "use client"
 
 import { useState, useEffect } from "react";
-import { BookOpen, Sparkles, FileText, Wand2, Book, Download, ClipboardList, Trash2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { BookOpen, Sparkles, FileText, Wand2, Book, Download, ClipboardList, Trash2, Feather, Library, PenTool } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { Card } from "@/components/ui/card";
 import { SignInButton, SignUpButton, UserButton, useUser, useAuth } from '@clerk/nextjs';
 import { generateBook } from "@/app/actions/generate-book";
 import { generatePDF } from "@/lib/pdf-generator";
@@ -16,68 +14,15 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import { getSupabaseClient } from '@/lib/supabase';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-
-const useSafeUser = () => {
-  try {
-    return useUser();
-  } catch (error) {
-    return { isSignedIn: false, user: null };
-  }
-};
-
-const useSafeAuth = () => {
-  try {
-    return useAuth();
-  } catch (error) {
-    return { 
-      getToken: async () => null 
-    };
-  }
-};
+import { VintageButton } from "@/components/ui/vintage-button";
+import { TexturedCard } from "@/components/ui/textured-card";
+import { BookSpine } from "@/components/ui/book-spine";
+import { Button } from "@/components/ui/button";
 
 const BookReader = dynamic(() => import("@/components/book-reader").then(mod => ({ default: mod.BookReader })), {
-  loading: () => <div className="text-center py-12">Loading book preview...</div>,
+  loading: () => <div className="text-center py-12 text-leather">Loading book preview...</div>,
   ssr: false,
 });
-
-const ACCENT_COLOR = "#8b5cf6"; // purple-500
-const ACCENT_COLOR_HOVER = "#7c3aed"; // purple-600
-const ACCENT_TEXT_COLOR = "#fff";
-const ACCENT_TEXT_COLOR_HOVER = "#fff";
-const ACCENT_OUTLINE = `1px solid ${ACCENT_COLOR}`;
-
-const accentButtonProps = {
-  style: {
-    backgroundColor: ACCENT_COLOR,
-    color: ACCENT_TEXT_COLOR,
-    border: ACCENT_OUTLINE,
-    transition: 'all 0.2s',
-  },
-  onMouseOver: (e: any) => {
-    e.currentTarget.style.backgroundColor = ACCENT_COLOR_HOVER;
-    e.currentTarget.style.color = ACCENT_TEXT_COLOR_HOVER;
-  },
-  onMouseOut: (e: any) => {
-    e.currentTarget.style.backgroundColor = ACCENT_COLOR;
-    e.currentTarget.style.color = ACCENT_TEXT_COLOR;
-  },
-};
-const accentOutlineButtonProps = {
-  style: {
-    backgroundColor: '#fff',
-    color: ACCENT_COLOR,
-    border: ACCENT_OUTLINE,
-    transition: 'all 0.2s',
-  },
-  onMouseOver: (e: any) => {
-    e.currentTarget.style.backgroundColor = ACCENT_COLOR_HOVER;
-    e.currentTarget.style.color = ACCENT_TEXT_COLOR_HOVER;
-  },
-  onMouseOut: (e: any) => {
-    e.currentTarget.style.backgroundColor = '#fff';
-    e.currentTarget.style.color = ACCENT_COLOR;
-  },
-};
 
 export default function ModernInterface() {
   const [activeTab, setActiveTab] = useState("create");
@@ -86,25 +31,23 @@ export default function ModernInterface() {
   const [category, setCategory] = useState("");
   const [bookSize, setBookSize] = useState("medium");
   const [isGenerating, setIsGenerating] = useState(false);
-  const [currentView, setCurrentView] = useState("form"); // "form", "writing", "preview"
+  const [currentView, setCurrentView] = useState("form");
   const [writingProgress, setWritingProgress] = useState(0);
   const [bookContent, setBookContent] = useState<any | null>(null);
   const [pageContent, setPageContent] = useState<any[]>([]);
   const [isDownloading, setIsDownloading] = useState(false);
-  const { toast } = useToast();
-  const { isSignedIn, user } = useSafeUser();
-  const { getToken } = useSafeAuth();
-
-  const [bookToDelete, setBookToDelete] = useState<any>(null);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [showAddDialog, setShowAddDialog] = useState(false);
-  const [isSavingToLibrary, setIsSavingToLibrary] = useState(false);
-  const [canAddToLibrary, setCanAddToLibrary] = useState(false);
+  const [libraryBooks, setLibraryBooks] = useState<any[] | null>(null);
   const [libraryTimer, setLibraryTimer] = useState(0);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [bookToDelete, setBookToDelete] = useState<any | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const { toast } = useToast();
+  const { user } = useUser();
+  const { getToken } = useAuth();
 
   const tabs = [
-    { id: "create", label: "Create", icon: Wand2 },
-    { id: "library", label: "Library", icon: FileText }
+    { id: "create", label: "Write", icon: PenTool },
+    { id: "library", label: "Library", icon: Library }
   ];
 
   const categories = [
@@ -119,354 +62,135 @@ export default function ModernInterface() {
     { id: "long", label: "Novel", description: "15,000-25,000 words", wordCount: "~20K words" }
   ];
 
-  const [libraryBooks, setLibraryBooks] = useState<any[] | null>(null);
-
-  const [showLandingLoader, setShowLandingLoader] = useState(true);
-  const [animationsPlayed, setAnimationsPlayed] = useState(false);
-  
+  // Load library books when library tab is active
   useEffect(() => {
-    if (!isSignedIn) {
-      setShowLandingLoader(true);
-      const timer = setTimeout(() => {
-        setShowLandingLoader(false);
-        setAnimationsPlayed(true);
-      }, 3000);
-      return () => clearTimeout(timer);
-    } else {
-      setAnimationsPlayed(true);
-    }
-  }, [isSignedIn]);
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const savedBook = localStorage.getItem("bookoustic_book_content")
-      if (savedBook) {
-        setBookContent(JSON.parse(savedBook))
-        setCurrentView("preview")
-      }
-    }
-  }, []);
-
-  useEffect(() => {
-    if (typeof window !== "undefined" && bookContent) {
-      localStorage.setItem("bookoustic_book_content", JSON.stringify(bookContent))
-    }
-  }, [bookContent]);
-
-  const loadLibraryBooks = async () => {
-    setLibraryBooks(null);
-    if (user) {
-      try {
-        const token = await getToken({ template: 'supabase' })
-          .catch(() => getToken())
-          .catch(() => null);
-          
-        if (token) {
-          const supabase = getSupabaseClient(token);
-          
-          const { data, error } = await supabase
-            .from('book_generations')
-            .select('*')
-            .eq('user_id', user.id)
-            .order('created_at', { ascending: false });
-            
-          if (!error && data) {
-            setLibraryBooks(data);
-            return;
-          }
-        }
-      } catch (err) {
-        console.error("Error loading books from Supabase:", err);
-      }
-    }
-    
-    try {
-      if (typeof window !== "undefined") {
-        const savedBooks = JSON.parse(localStorage.getItem("bookoustic_saved_books") || "[]");
-        setLibraryBooks(savedBooks);
-      }
-    } catch (err) {
-      console.error("Error loading books from localStorage:", err);
-      setLibraryBooks([]);
-    }
-  };
-
-  useEffect(() => {
-    if (activeTab === "library") {
+    if (activeTab === "library" && user) {
       loadLibraryBooks();
     }
   }, [activeTab, user]);
 
-  const loadBookFromLibrary = (book: any) => {
-    setBookContent(book.book_data);
-    setCurrentView("preview");
-    setActiveTab("create");
+  const loadLibraryBooks = async () => {
+    if (!user) return;
+    
+    try {
+      const token = (await getToken({ template: 'supabase' }).catch(() => undefined)) ||
+                    (await getToken().catch(() => undefined)) ||
+                    undefined;
+      
+      if (!token) {
+        console.error("Failed to get authentication token");
+        setLibraryBooks([]);
+        return;
+      }
+
+      const supabase = getSupabaseClient(token);
+      const { data, error } = await supabase
+        .from("book_generations")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Error loading library:", error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to load your library.",
+        });
+        setLibraryBooks([]);
+      } else {
+        setLibraryBooks(data || []);
+      }
+    } catch (err) {
+      console.error("Error loading library:", err);
+      setLibraryBooks([]);
+    }
   };
 
-  const deleteBookFromLibrary = async (bookId: string, isLocalBook: boolean = false) => {
-    if (!isLocalBook && user) {
-      try {
-        const token = await getToken({ template: 'supabase' })
-          .catch(() => getToken())
-          .catch(() => null);
-          
-        if (token) {
-          const supabase = getSupabaseClient(token);
-          
-          const { error } = await supabase
-            .from('book_generations')
-            .delete()
-            .eq('id', bookId);
-            
-          if (!error) {
-            toast({
-              title: "Book Deleted",
-              description: "The book has been removed from your library.",
-            });
-            
-            // Reload library books
-            loadLibraryBooks();
-            return;
-          } else {
-            throw new Error(error.message);
-          }
-        }
-      } catch (err: any) {
-        console.error("Error deleting book from Supabase:", err);
-        toast({
-          title: "Delete Error",
-          description: `Could not delete book: ${err.message || "Unknown error"}`,
-          variant: "destructive",
-        });
-      }
-    } else {
-      // Delete from localStorage
-      try {
-        if (typeof window !== "undefined") {
-          const savedBooks = JSON.parse(localStorage.getItem("bookoustic_saved_books") || "[]");
-          const updatedBooks = savedBooks.filter((book: any) => book.id !== bookId);
-          localStorage.setItem("bookoustic_saved_books", JSON.stringify(updatedBooks));
-          
-          toast({
-            title: "Book Deleted",
-            description: "The book has been removed from your library.",
-          });
-          
-          // Update state
-          setLibraryBooks(updatedBooks);
-        }
-      } catch (err) {
-        console.error("Error deleting book from localStorage:", err);
-        toast({
-          title: "Delete Error",
-          description: "Could not delete book from local storage.",
-          variant: "destructive",
-        });
-      }
+  const loadBookFromLibrary = (book: any) => {
+    if (book.book_data) {
+      setBookContent(book.book_data);
+      setCategory(book.book_data.category || "Fiction");
+      setCurrentView("preview");
+      setActiveTab("create");
     }
   };
 
   const handleGenerate = async () => {
-    if (!bookDescription.trim() || !category) return;
-    
+    if (!bookDescription.trim() || !category) {
+      toast({
+        variant: "destructive",
+        title: "Missing Information",
+        description: "Please provide a book description and select a genre.",
+      });
+      return;
+    }
+
     setIsGenerating(true);
     setCurrentView("writing");
     setWritingProgress(0);
-    
-    // Simulate progress bar while generating
+
+    // Simulate progress
     const progressInterval = setInterval(() => {
-      setWritingProgress(prev => {
+      setWritingProgress((prev) => {
         if (prev >= 90) {
-          return 90;
+          clearInterval(progressInterval);
+          return prev;
         }
-        return prev + Math.random() * 6 + 2;
+        return prev + Math.random() * 10;
       });
-    }, 400);
-    
+    }, 500);
+
     try {
-      const content = await generateBook(bookDescription, category.toLowerCase(), bookSize, authorTone);
-      
+      console.log('Starting book generation with params:', {
+        description: bookDescription,
+        category,
+        size: bookSize,
+        tone: authorTone || "engaging and descriptive"
+      });
+
+      const result = await generateBook(
+        bookDescription,
+        category,
+        bookSize,
+        authorTone || "engaging and descriptive"
+      );
+
+      console.log('Book generation result:', result);
+
       clearInterval(progressInterval);
       setWritingProgress(100);
-      setBookContent(content);
-      setCurrentView("preview");
-      setCanAddToLibrary(false);
-      setLibraryTimer(7);
-      
-      // Enable library addition after 7 seconds with countdown
-      const timerInterval = setInterval(() => {
-        setLibraryTimer(prev => {
-          if (prev <= 1) {
-            clearInterval(timerInterval);
-            setCanAddToLibrary(true);
-            return 0;
-          }
-          return prev - 1;
+
+      if (result.success && result.book) {
+        setBookContent(result.book);
+        setTimeout(() => {
+          setCurrentView("preview");
+          setIsGenerating(false);
+        }, 500);
+
+        toast({
+          title: "Book Generated!",
+          description: "Your book is ready to read.",
         });
-      }, 1000);
-      
-      toast({
-        title: "Book Generated",
-        description: "Your book has been successfully created!",
-      });
+      } else {
+        const errorMessage = result.error || "Failed to generate book";
+        console.error('Generation failed with error:', errorMessage);
+        console.error('Full result object:', result);
+        throw new Error(errorMessage);
+      }
     } catch (error: any) {
       console.error("Error generating book:", error);
-      toast({
-        title: "Generation Failed",
-        description: error.message || "An error occurred while generating your book.",
-        variant: "destructive",
-      });
-      setCurrentView("form");
-    } finally {
-      setIsGenerating(false);
+      console.error("Error stack:", error.stack);
+      console.error("Error message:", error.message);
+      
       clearInterval(progressInterval);
-    }
-  };
-
-  const handleDownloadPDF = async () => {
-    if (!bookContent) return;
-
-    setIsDownloading(true);
-    try {
-      toast({
-        title: "Preparing PDF",
-        description: "Generating PDF of the complete book. This may take a moment...",
-      });
-      
-      // Use the paginated pageContent for WYSIWYG export
-      const pdfDataUri = await generatePDF(bookContent, category, undefined, pageContent);
-      const link = document.createElement("a");
-      link.href = pdfDataUri;
-      link.download = `${bookContent.title.replace(/[^a-z0-9]/gi, "_").toLowerCase()}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      setIsGenerating(false);
+      setCurrentView("form");
       
       toast({
-        title: "PDF Downloaded",
-        description: "Your complete book has been downloaded successfully.",
-      });
-    } catch (error: any) {
-      console.error("Error downloading PDF:", error);
-      toast({
-        title: "Download Failed",
-        description: `Failed to download the book as PDF: ${error.message || "Please try again."}`,
         variant: "destructive",
-      });
-    } finally {
-      setIsDownloading(false);
-    }
-  };
-
-  const saveBookToLibrary = async () => {
-    if (!bookContent) {
-      toast({
-        title: "No book to save",
-        description: "Please generate a book first.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    let coverImageUrl = null;
-    // Try to extract cover image from DOM
-    try {
-      if (typeof window !== "undefined") {
-        const coverElement = document.querySelector('.book-cover-capture');
-        if (coverElement) {
-          const html2canvas = (await import('html2canvas')).default;
-          const canvas = await html2canvas(coverElement as HTMLElement, {
-            scale: 1,
-            useCORS: true,
-            allowTaint: true,
-            backgroundColor: null,
-          });
-          coverImageUrl = canvas.toDataURL('image/jpeg', 0.85);
-        }
-      }
-    } catch (err) {
-      console.error("Error capturing cover image:", err);
-    }
-
-    if (!user) {
-      toast({
-        title: "Sign in required",
-        description: "Please sign in to save books to your library.",
-        variant: "destructive",
-      });
-      // Save to localStorage as fallback
-      try {
-        if (typeof window !== "undefined") {
-          const savedBooks = JSON.parse(localStorage.getItem("bookoustic_saved_books") || "[]");
-          savedBooks.push({
-            id: Date.now().toString(),
-            book_title: bookContent.title || "Untitled Book",
-            book_data: bookContent,
-            cover_image_url: coverImageUrl,
-            created_at: new Date().toISOString()
-          });
-          localStorage.setItem("bookoustic_saved_books", JSON.stringify(savedBooks));
-          toast({
-            title: "Book Saved Locally",
-            description: "Your book has been saved to your browser storage.",
-          });
-          // Reload library books if on library tab
-          if (activeTab === "library") {
-            loadLibraryBooks();
-          }
-        }
-      } catch (err) {
-        console.error("Error saving book to localStorage:", err);
-      }
-      return;
-    }
-
-    try {
-      // Get auth token
-      const token = await getToken({ template: 'supabase' })
-        .catch(() => getToken())
-        .catch(() => null);
-      if (!token) {
-        throw new Error("Failed to get authentication token for Supabase");
-      }
-      // Initialize Supabase client with token
-      const supabase = getSupabaseClient(token);
-      // Make sure book data is properly formatted
-      const bookToSave = {
-        user_id: user.id,
-        book_title: bookContent.title || "Untitled Book",
-        book_data: bookContent,
-        cover_image_url: coverImageUrl,
-        created_at: new Date().toISOString()
-      };
-      // Insert the book into Supabase
-      const { error } = await supabase
-        .from('book_generations')
-        .insert([bookToSave]);
-      if (error) {
-        // Check for duplicate/unique constraint error
-        const duplicate = error.code === '23505' || (error.message && error.message.toLowerCase().includes('duplicate'));
-        toast({
-          title: duplicate ? "Book already exists in library" : "Save Error",
-          description: duplicate ? undefined : `Could not save to library: ${error.message || "Unknown error"}`,
-          variant: "destructive",
-        });
-        return;
-      }
-      toast({
-        title: "Book Saved",
-        description: "Your book has been saved to your library.",
-      });
-      // Reload library books if on library tab
-      if (activeTab === "library") {
-        loadLibraryBooks();
-      }
-    } catch (err: any) {
-      console.error("Error saving book to Supabase:", err);
-      toast({
-        title: "Save Error",
-        description: `Could not save to library: ${err.message || "Unknown error"}`,
-        variant: "destructive",
+        title: "Generation Failed",
+        description: error.message || "Failed to generate book. Please check the console for details.",
       });
     }
   };
@@ -479,600 +203,483 @@ export default function ModernInterface() {
     setAuthorTone("");
     setCategory("");
     setBookSize("medium");
-    setCanAddToLibrary(false);
-    setLibraryTimer(0);
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("bookoustic_book_content");
-    }
   };
 
-  const LandingPage = ({ onLandingReady, animationsPlayed }: { onLandingReady?: () => void, animationsPlayed: boolean }) => {
-    useEffect(() => {
-      if (onLandingReady) onLandingReady();
-    }, []);
+  // Landing Page with Vintage Theme
+  const LandingPage = ({ animationsPlayed }: { animationsPlayed: boolean }) => {
+    return (
+      <div className="min-h-screen bg-sepia text-ink font-merriweather relative overflow-hidden">
+        {/* Background decorative elements */}
+        <div className="absolute top-0 left-0 w-64 h-64 border-t-4 border-l-4 border-gold/20 rounded-tl-3xl m-8 pointer-events-none" />
+        <div className="absolute bottom-0 right-0 w-64 h-64 border-b-4 border-r-4 border-gold/20 rounded-br-3xl m-8 pointer-events-none" />
 
-    const renderAuthButtons = () => {
-      try {
-        return (
-          <div className="flex items-center gap-2">
-            <SignInButton>
-              <Button variant="outline" className="px-4 py-2 sm:px-6 text-sm sm:text-base">Sign In</Button>
-            </SignInButton>
+        {/* Navigation */}
+        <nav className="sticky top-0 z-50 w-full bg-cream/95 backdrop-blur-sm border-b border-gold/30 shadow-sm">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center h-16">
+              <Link href="/" className="font-playfair text-2xl font-bold text-leather tracking-tight flex items-center gap-2">
+                <BookOpen className="h-6 w-6 text-gold" />
+                Bookoustic
+              </Link>
+              <div className="flex items-center gap-2">
+                <SignInButton>
+                  <VintageButton variant="secondary" className="px-4 py-2 text-sm">Sign In</VintageButton>
+                </SignInButton>
+                <SignUpButton>
+                  <VintageButton className="px-4 py-2 text-sm">Sign Up</VintageButton>
+                </SignUpButton>
+              </div>
+            </div>
+          </div>
+          <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-gold to-transparent opacity-50" />
+        </nav>
+
+        {/* Hero Section */}
+        <main className="relative z-10 max-w-4xl mx-auto text-center px-4 py-16">
+          <div>
+            <h2 className="text-gold font-merriweather text-lg tracking-[0.2em] uppercase mb-4">
+              Est. 2024
+            </h2>
+            <h1 className="font-playfair text-6xl md:text-8xl font-bold text-ink mb-6 drop-shadow-sm">
+              Bookoustic
+            </h1>
+            <p className="font-merriweather text-xl md:text-2xl text-leather/80 italic max-w-2xl mx-auto leading-relaxed">
+              &ldquo;Where stories are crafted with ink, paper, and a touch of magic.&rdquo;
+            </p>
+          </div>
+
+          {/* Vintage Divider */}
+          <div className="flex items-center justify-center gap-4 my-12">
+            <div className="h-[1px] w-24 bg-leather/30" />
+            <div className="w-3 h-3 rotate-45 border border-gold bg-sepia" />
+            <div className="h-[1px] w-24 bg-leather/30" />
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-6 justify-center items-center">
             <SignUpButton>
-              <Button className="px-4 py-2 sm:px-6 text-sm sm:text-base">Sign Up</Button>
+              <VintageButton>
+                <BookOpen className="w-5 h-5" />
+                Start Writing
+              </VintageButton>
             </SignUpButton>
           </div>
-        );
-      } catch (error) {
-        return (
-          <div className="flex items-center gap-2">
-            <Button variant="outline" className="px-4 py-2 sm:px-6 text-sm sm:text-base">Sign In</Button>
-            <Button className="px-4 py-2 sm:px-6 text-sm sm:text-base">Sign Up</Button>
-          </div>
-        );
-      }
-    };
-
-    const renderHeroButton = () => {
-      try {
-        return (
-          <SignUpButton>
-            <Button className="w-full sm:w-auto px-6 py-3 sm:px-8 sm:py-4 text-lg bg-blue-600 hover:bg-blue-700 text-white">
-              <Wand2 className="w-5 h-5 mr-2" />
-              Start Creating
-            </Button>
-          </SignUpButton>
-        );
-      } catch (error) {
-        return (
-          <Button className="w-full sm:w-auto px-6 py-3 sm:px-8 sm:py-4 text-lg bg-blue-600 hover:bg-blue-700 text-white">
-            <Wand2 className="w-5 h-5 mr-2" />
-            Start Creating
-          </Button>
-        );
-      }
-    };
-
-    const renderCTAButton = () => {
-      try {
-        return (
-          <SignUpButton>
-            <Button className="w-full sm:w-auto px-6 py-3 sm:px-10 sm:py-4 text-lg bg-blue-600 hover:bg-blue-700 text-white">
-              <Sparkles className="w-5 h-5 mr-2" />
-              Begin Your Journey
-            </Button>
-          </SignUpButton>
-        );
-      } catch (error) {
-        return (
-          <Button className="w-full sm:w-auto px-6 py-3 sm:px-10 sm:py-4 text-lg bg-blue-600 hover:bg-blue-700 text-white">
-            <Sparkles className="w-5 h-5 mr-2" />
-            Begin Your Journey
-          </Button>
-        );
-      }
-    };
-
-    return (
-      <div className="min-h-screen bg-[#f6f8fc] relative overflow-hidden">
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className={`absolute top-1/4 left-1/4 w-96 h-96 bg-blue-100 rounded-full blur-3xl opacity-50 ${animationsPlayed ? 'animate-fade-in' : ''}`} style={{ animationDelay: '0.1s' }} />
-          <div className={`absolute bottom-1/4 right-1/4 w-80 h-80 bg-blue-50 rounded-full blur-3xl opacity-40 ${animationsPlayed ? 'animate-fade-in' : ''}`} style={{ animationDelay: '0.2s' }} />
-        </div>
-
-        <div className="relative z-10">
-          <header className="px-4 sm:px-8 py-4 border-b border-gray-200 bg-white/80 backdrop-blur-xl">
-            <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-0">
-              <div className="flex items-center gap-3">
-                <div className={`p-2 bg-blue-600 rounded-lg ${animationsPlayed ? 'animate-pop-in' : ''}`} style={{ animationDelay: '0.15s' }}>
-                  <BookOpen className="w-6 h-6 text-white" />
-                </div>
-                <h1 className={`text-2xl font-bold text-blue-600 ${animationsPlayed ? 'animate-fade-up' : ''}`} style={{ animationDelay: '0.2s' }}>Bookoustic</h1>
-              </div>
-              
-              {renderAuthButtons()}
-            </div>
-          </header>
-
-          <main className="px-4 sm:px-8 py-8 sm:py-16">
-            <div className="max-w-6xl mx-auto">
-              <div className="flex flex-col items-center text-center">
-                <div className={`inline-flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 rounded-full text-blue-600 text-sm font-medium ${animationsPlayed ? 'animate-pop-in' : ''}`} style={{ animationDelay: '0.25s' }}>
-                  <Sparkles className="w-4 h-4" />
-                  AI-Powered Book Creation
-                </div>
-                <h1 className={`text-4xl sm:text-5xl md:text-7xl font-bold text-blue-600 leading-tight mt-6 ${animationsPlayed ? 'animate-fade-up' : ''} text-center`} style={{ animationDelay: '0.3s' }}>
-                  Create Books with
-                  <br className="hidden sm:block" />
-                  <span className="text-blue-700"> Artificial Intelligence</span>
-                </h1>
-                <p className={`text-base sm:text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed mt-4 ${animationsPlayed ? 'animate-fade-up' : ''} text-center`} style={{ animationDelay: '0.35s' }}>
-                  Transform your ideas into professional books in minutes. Our advanced AI analyzes your description 
-                  and crafts compelling narratives with rich characters, engaging plots, and polished prose.
-                </p>
-                <div className={`flex flex-col sm:flex-row gap-4 justify-center items-center mt-8 ${animationsPlayed ? 'animate-pop-in' : ''}`} style={{ animationDelay: '0.4s' }}>
-                  {renderHeroButton()}
-                </div>
-              </div>
-              <div className={`grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-8 mb-8 sm:mb-16 mt-16 ${animationsPlayed ? 'animate-fade-up' : ''}`} style={{ animationDelay: '0.5s' }}>
-                <Card className="p-6 sm:p-8 bg-white border-gray-200 shadow-md hover:-translate-y-1 transition-all duration-300">
-                  <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center mb-4 sm:mb-6">
-                    <ClipboardList className="w-6 h-6 text-white" />
-                  </div>
-                  <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-2 sm:mb-4">Lightning Fast</h3>
-                  <p className="text-sm sm:text-base text-gray-600 leading-relaxed">
-                    Generate complete books in minutes, not months. Our AI understands narrative structure and creates 
-                    compelling stories at unprecedented speed.
-                  </p>
-                </Card>
-
-                <Card className="p-6 sm:p-8 bg-white border-gray-200 shadow-md hover:-translate-y-1 transition-all duration-300">
-                  <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center mb-4 sm:mb-6">
-                    <Book className="w-6 h-6 text-white" />
-                  </div>
-                  <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-2 sm:mb-4">Professional Quality</h3>
-                  <p className="text-sm sm:text-base text-gray-600 leading-relaxed">
-                    Every book is crafted with attention to character development, plot coherence, and engaging prose 
-                    that rivals traditionally published works.
-                  </p>
-                </Card>
-
-                <Card className="p-6 sm:p-8 bg-white border-gray-200 shadow-md hover:-translate-y-1 transition-all duration-300">
-                  <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center mb-4 sm:mb-6">
-                    <FileText className="w-6 h-6 text-white" />
-                  </div>
-                  <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-2 sm:mb-4">Multiple Genres</h3>
-                  <p className="text-sm sm:text-base text-gray-600 leading-relaxed">
-                    From sci-fi epics to romance novels, our AI adapts to any genre and creates authentic, 
-                    engaging content tailored to your vision.
-                  </p>
-                </Card>
-              </div>
-
-              <Card className={`p-6 sm:p-12 bg-white border-gray-200 shadow-md text-center ${animationsPlayed ? 'animate-pop-in' : ''}`} style={{ animationDelay: '0.6s' }}>
-                <h2 className="text-2xl sm:text-3xl font-bold text-blue-600 mb-3 sm:mb-4">Ready to Write Your Story?</h2>
-                <p className="text-base sm:text-lg text-gray-600 mb-6 sm:mb-8 max-w-2xl mx-auto">
-                  Join thousands of authors who have already transformed their ideas into published books with Bookoustic.
-                </p>
-                {renderCTAButton()}
-              </Card>
-            </div>
-          </main>
-        </div>
+        </main>
       </div>
     );
   };
 
-  if (!isSignedIn) {
-            return <LandingPage animationsPlayed={animationsPlayed} />;
+  // Show landing page if not signed in
+  if (!user) {
+    return <LandingPage animationsPlayed={false} />;
   }
 
-  const renderUserButton = () => {
-    try {
-      return (
-        <UserButton afterSignOutUrl="/" />
-      );
-    } catch (error) {
-      return (
-        <Button variant="outline" size="sm" className="rounded-full w-10 h-10 p-0">
-          <span className="sr-only">User menu</span>
-          <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-white">
-            U
-          </div>
-        </Button>
-      );
-    }
-  };
-
+  // Signed-in Interface
   return (
-    <div className="min-h-screen bg-[#f6f8fc] relative overflow-hidden">
-      {/* Floating background elements */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-100 rounded-full blur-3xl opacity-50" />
-        <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-blue-50 rounded-full blur-3xl opacity-40" style={{ animationDelay: "1s" }} />
-      </div>
+    <div className="h-screen bg-[#F4E8D8] text-ink font-merriweather flex flex-col">
+      {/* Navigation Header */}
+      <nav className="flex-shrink-0 z-50 w-full bg-cream border-b border-gold/30">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <Link href="/" className="font-playfair text-2xl font-bold text-leather tracking-tight flex items-center gap-2">
+              <BookOpen className="h-6 w-6 text-gold" />
+              Bookoustic
+            </Link>
 
-      <div className="relative z-10">
-        {/* Header */}
-        <header className="px-4 sm:px-8 py-4 border-b border-gray-200 bg-white/80 backdrop-blur-xl">
-          <div className="max-w-7xl mx-auto flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-600 rounded-lg">
-                <BookOpen className="w-6 h-6 text-white" />
-              </div>
-              <h1 className="text-2xl font-bold text-blue-600">Bookoustic</h1>
-            </div>
-            
-            <div className="flex items-center gap-4">
-              <nav className="hidden sm:flex items-center gap-1 p-1 bg-gray-50 rounded-lg border border-gray-200">
-                {tabs.map((tab) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-all duration-300 ${
-                      activeTab === tab.id
-                        ? "bg-blue-600 text-white shadow-md"
-                        : "text-gray-600 hover:text-gray-800 hover:bg-gray-100"
-                    }`}
-                  >
-                    <tab.icon className="w-4 h-4" />
-                    <span className="font-medium">{tab.label}</span>
-                  </button>
-                ))}
-              </nav>
-              
-              {renderUserButton()}
-            </div>
-          </div>
-          
-          {/* Mobile navigation */}
-          <div className="sm:hidden mt-4 flex items-center justify-between border-t border-gray-100 pt-4">
-            <nav className="flex items-center justify-between w-full">
+            <div className="hidden sm:flex sm:space-x-8" style={{ marginRight: '118px' }}>
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`flex-1 px-2 py-2 rounded-lg flex flex-col items-center gap-1 transition-all duration-300 ${
-                    activeTab === tab.id
-                      ? "bg-blue-600 text-white shadow-md"
-                      : "text-gray-600 hover:text-gray-800 hover:bg-gray-100"
+                  className={`relative inline-flex items-center px-1 pt-1 text-sm font-medium transition-colors duration-200 ${
+                    activeTab === tab.id ? 'text-leather' : 'text-ink/60 hover:text-leather'
                   }`}
                 >
-                  <tab.icon className="w-4 h-4" />
-                  <span className="text-xs font-medium">{tab.label}</span>
+                  <span className="flex items-center gap-2 font-merriweather">
+                    <tab.icon className="w-4 h-4" />
+                    {tab.label}
+                  </span>
+                  {activeTab === tab.id && (
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gold" />
+                  )}
                 </button>
               ))}
-            </nav>
+            </div>
+
+            <UserButton afterSignOutUrl="/" />
           </div>
-        </header>
+        </div>
+        <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-gold to-transparent opacity-50" />
+      </nav>
 
-        {/* Main Content */}
-        <main className="px-8 py-12">
-          <div className="max-w-4xl mx-auto">
-            {activeTab === "create" && (
-              <div className="space-y-8">
-                {currentView === "form" && (
-                  <>
-                    {/* Hero Section */}
-                    <div className="text-center space-y-4">
-                      <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 rounded-full text-blue-600 text-sm font-medium">
-                        <Sparkles className="w-4 h-4" />
-                        AI-Powered Book Creation
-                      </div>
-                      <h2 className="text-4xl md:text-5xl font-bold text-blue-600 leading-tight">
-                        Craft Your Story
-                      </h2>
-                      <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-                        Transform your ideas into compelling narratives. Describe your vision, 
-                        choose your genre, and let AI help you create a professional book.
-                      </p>
-                    </div>
-
-                    {/* Creation Form */}
-                    <Card className="p-8 bg-white border-gray-200 shadow-md">
-                      <div className="space-y-8">
-                        {/* Book Description */}
-                        <div className="space-y-3">
-                          <Label htmlFor="description" className="text-lg font-semibold text-gray-800">
-                            Describe Your Book
-                          </Label>
-                          <Textarea
-                            id="description"
-                            placeholder="Describe the book you want to create. Be as detailed as possible about the plot, characters, setting, themes..."
-                            value={bookDescription}
-                            onChange={(e) => setBookDescription(e.target.value)}
-                            className="min-h-32 bg-white border-gray-300 text-gray-800 resize-none focus:border-blue-400 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
-                          />
-                        </div>
-
-                        {/* Author Tone */}
-                        <div className="space-y-3">
-                          <Label htmlFor="authorTone" className="text-lg font-semibold text-gray-800">
-                            Author Writing Style
-                          </Label>
-                          <Textarea
-                            id="authorTone"
-                            placeholder="Describe the author's writing style and tone"
-                            value={authorTone}
-                            onChange={(e) => setAuthorTone(e.target.value)}
-                            className="min-h-24 bg-white border-gray-300 text-gray-800 resize-none focus:border-blue-400 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
-                          />
-                        </div>
-
-                        {/* Category Selection */}
-                        <div className="space-y-3">
-                          <Label className="text-lg font-semibold text-gray-800">
-                            Select Category
-                          </Label>
-                          <Select value={category} onValueChange={setCategory}>
-                            <SelectTrigger className="bg-white border-gray-300 text-gray-800 focus:border-blue-400 focus:ring focus:ring-blue-200 focus:ring-opacity-50">
-                              <SelectValue placeholder="Choose a genre for your book" />
-                            </SelectTrigger>
-                            <SelectContent className="bg-white border-gray-200">
-                              {categories.map((cat) => (
-                                <SelectItem key={cat} value={cat.toLowerCase()} className="text-gray-800 focus:bg-blue-50 focus:text-blue-700">
-                                  {cat}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        {/* Book Size */}
-                        <div className="space-y-4">
-                          <Label className="text-lg font-semibold text-gray-800">
-                            Book Length
-                          </Label>
-                          <RadioGroup value={bookSize} onValueChange={setBookSize} className="space-y-3">
-                            {bookSizes.map((size) => (
-                              <div
-                                key={size.id}
-                                className={`flex items-center space-x-3 p-4 rounded-lg border transition-all duration-300 cursor-pointer ${
-                                  bookSize === size.id
-                                    ? "border-blue-300 bg-blue-50 shadow-sm"
-                                    : "border-gray-200 bg-gray-50 hover:border-blue-200"
-                                }`}
-                              >
-                                <RadioGroupItem value={size.id} id={size.id} className="text-blue-600" />
-                                <div className="flex-1">
-                                  <Label
-                                    htmlFor={size.id}
-                                    className="text-base font-medium text-gray-800 cursor-pointer"
-                                  >
-                                    {size.label}
-                                  </Label>
-                                  <p className="text-sm text-gray-500">
-                                    {size.description}
-                                  </p>
-                                </div>
-                                <div className="text-sm font-medium text-blue-600">
-                                  {size.wordCount}
-                                </div>
-                              </div>
-                            ))}
-                          </RadioGroup>
-                        </div>
-
-                        {/* Generate Button */}
-                        <Button
-                          onClick={handleGenerate}
-                          disabled={!bookDescription.trim() || !category || isGenerating}
-                          {...accentButtonProps}
-                        >
-                          {isGenerating ? (
-                            <div className="flex items-center gap-3">
-                              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                              Creating Your Book...
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-3">
-                              <Wand2 className="w-5 h-5" />
-                              Generate Book
-                            </div>
-                          )}
-                        </Button>
-                      </div>
-                    </Card>
-                  </>
-                )}
-
-                {/* Writing Animation View */}
-                {currentView === "writing" && (
-                  <div className="text-center space-y-8">
-                    <div className="space-y-4">
-                      <div className="w-20 h-20 bg-blue-600 rounded-3xl flex items-center justify-center mx-auto mb-6 animate-pulse">
-                        <Wand2 className="w-10 h-10 text-white" />
-                      </div>
-                      <h2 className="text-3xl font-bold text-blue-600">Writing Your Book</h2>
-                      <p className="text-lg text-gray-600 max-w-xl mx-auto">
-                        Our AI is crafting your {bookSizes.find(s => s.id === bookSize)?.label.toLowerCase()} 
-                        based on your description. This process creates compelling narratives with rich characters and engaging plots.
-                      </p>
-                    </div>
-                    
-                    {/* Progress Animation */}
-                    <Card className="p-8 bg-white border-gray-200 shadow-md max-w-2xl mx-auto">
-                      <div className="space-y-6">
-                        <div className="flex justify-between text-sm text-gray-500 mb-2">
-                          <span>Progress</span>
-                          <span>{Math.round(writingProgress)}%</span>
-                        </div>
-                        <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
-                          <div 
-                            className="h-full bg-blue-600 transition-all duration-300 ease-out rounded-full"
-                            style={{ width: `${writingProgress}%` }}
-                          />
-                        </div>
-                        
-                        {/* Writing stages */}
-                        <div className="grid grid-cols-3 gap-4 mt-6">
-                          <div className={`text-center p-3 rounded-lg transition-all duration-300 ${
-                            writingProgress >= 33 ? "bg-blue-50 text-blue-600" : "text-gray-500"
-                          }`}>
-                            <div className="text-sm font-medium">Plotting</div>
-                          </div>
-                          <div className={`text-center p-3 rounded-lg transition-all duration-300 ${
-                            writingProgress >= 66 ? "bg-blue-50 text-blue-600" : "text-gray-500"
-                          }`}>
-                            <div className="text-sm font-medium">Writing</div>
-                          </div>
-                          <div className={`text-center p-3 rounded-lg transition-all duration-300 ${
-                            writingProgress >= 99 ? "bg-blue-50 text-blue-600" : "text-gray-500"
-                          }`}>
-                            <div className="text-sm font-medium">Finalizing</div>
-                          </div>
-                        </div>
-                      </div>
-                    </Card>
+      {/* Main Content */}
+      <main className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+        {activeTab === "create" && currentView === "form" && (
+          <div className="min-h-full bg-[#5C4033]">
+            <div className="flex items-center justify-center p-4 md:p-12 py-12">
+              <TexturedCard variant="paper" withTornEdge className="max-w-2xl w-full my-8">
+                <div className="text-center mb-8">
+                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-sepia border border-gold mb-4">
+                    <Feather className="w-6 h-6 text-leather" />
                   </div>
-                )}
-
-                {/* Book Preview */}
-                {currentView === "preview" && bookContent && (
-                  <div className="space-y-8">
-                    <div className="flex items-center justify-between">
-                      <Button
-                        variant="outline"
-                        onClick={resetToForm}
-                        className="flex items-center gap-2 border-gray-200"
-                      >
-                        Create New Book
-                      </Button>
-                    </div>
-                    
-                                         <BookReader 
-                       book={bookContent} 
-                       isLoading={false} 
-                       category={category} 
-                       setPageContent={setPageContent} 
-                       onClose={resetToForm}
-                       libraryTimer={libraryTimer}
-                     />
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Library Tab */}
-            {activeTab === "library" && (
-              <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-2xl font-bold text-blue-600">Your Library</h2>
+                  <h2 className="font-playfair text-4xl font-bold text-ink mb-2">
+                    The Writer&apos;s Desk
+                  </h2>
+                  <p className="font-merriweather text-leather/70 italic">
+                    Compose your next masterpiece...
+                  </p>
                 </div>
+
+                <div className="space-y-6">
+                  {/* Book Description */}
+                  <div className="space-y-2">
+                    <label className="block font-playfair text-lg text-ink font-bold">
+                      Story Vision
+                    </label>
+                    <textarea
+                      placeholder="Describe the book you want to create..."
+                      value={bookDescription}
+                      onChange={(e) => setBookDescription(e.target.value)}
+                      className="w-full bg-transparent border-b-2 border-leather/20 focus:border-gold px-2 py-3 font-merriweather text-lg text-ink placeholder:text-leather/30 focus:outline-none resize-none min-h-[100px]"
+                    />
+                  </div>
+
+                  {/* Author Tone */}
+                  <div className="space-y-2">
+                    <label className="block font-playfair text-lg text-ink font-bold">
+                      Writing Style
+                    </label>
+                    <textarea
+                      placeholder="Describe the author's writing style and tone..."
+                      value={authorTone}
+                      onChange={(e) => setAuthorTone(e.target.value)}
+                      className="w-full bg-sepia/30 rounded-md border border-leather/10 focus:border-gold px-4 py-3 font-merriweather text-ink placeholder:text-leather/30 focus:outline-none resize-none min-h-[80px]"
+                    />
+                  </div>
+
+                  {/* Genre Selection */}
+                  <div className="space-y-2">
+                    <label className="block font-playfair text-lg text-ink font-bold">
+                      Genre
+                    </label>
+                    <select
+                      value={category}
+                      onChange={(e) => setCategory(e.target.value)}
+                      className="w-full bg-sepia/30 border-2 border-leather/20 focus:border-gold rounded-md px-4 py-3 font-merriweather text-base text-ink focus:outline-none cursor-pointer hover:border-gold/50 appearance-none"
+                      style={{
+                        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%235D4037' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`,
+                        backgroundRepeat: 'no-repeat',
+                        backgroundPosition: 'right 1rem center',
+                        paddingRight: '3rem',
+                        position: 'relative',
+                        verticalAlign: 'bottom'
+                      }}
+                      aria-label="Genre"
+                    >
+                      <option value="" className="bg-cream text-ink">Choose a genre</option>
+                      {categories.map((cat) => (
+                        <option key={cat} value={cat.toLowerCase()} className="bg-cream text-ink py-2">{cat}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Book Size */}
+                  <div className="space-y-4">
+                    <label className="block font-playfair text-lg text-ink font-bold">
+                      Book Length
+                    </label>
+                    <RadioGroup value={bookSize} onValueChange={setBookSize} className="space-y-3">
+                      {bookSizes.map((size) => (
+                        <div
+                          key={size.id}
+                          className={`flex items-center space-x-3 p-4 rounded-lg border cursor-pointer ${
+                            bookSize === size.id
+                              ? "border-gold bg-sepia/50"
+                              : "border-leather/20 bg-cream/50 hover:border-gold/50"
+                          }`}
+                        >
+                          <RadioGroupItem value={size.id} id={size.id} className="text-gold" />
+                          <div className="flex-1">
+                            <Label htmlFor={size.id} className="font-playfair text-base font-medium text-ink cursor-pointer">
+                              {size.label}
+                            </Label>
+                            <p className="text-sm text-leather/60">{size.description}</p>
+                          </div>
+                          <div className="text-sm font-medium text-gold">{size.wordCount}</div>
+                        </div>
+                      ))}
+                    </RadioGroup>
+                  </div>
+
+                  {/* Generate Button */}
+                  <div className="pt-4 flex justify-center">
+                    <VintageButton
+                      onClick={handleGenerate}
+                      disabled={!bookDescription.trim() || !category || isGenerating}
+                    >
+                      {isGenerating ? (
+                        <>
+                          <Sparkles className="w-5 h-5 animate-spin" />
+                          Inking Pages...
+                        </>
+                      ) : (
+                        <>
+                          <Feather className="w-5 h-5" />
+                          Generate Story
+                        </>
+                      )}
+                    </VintageButton>
+                  </div>
+                </div>
+              </TexturedCard>
+            </div>
+          </div>
+        )}
+
+        {/* Writing Progress View */}
+        {activeTab === "create" && currentView === "writing" && (
+          <div className="min-h-full bg-[#5C4033] flex items-center justify-center p-8">
+            <TexturedCard className="text-center max-w-2xl mx-auto">
+              <div className="w-20 h-20 bg-leather rounded-3xl flex items-center justify-center mx-auto mb-6 animate-pulse">
+                <Feather className="w-10 h-10 text-cream" />
+              </div>
+              <h2 className="font-playfair text-3xl font-bold text-ink mb-4">Crafting Your Tale</h2>
+              <p className="text-leather/70 mb-8">The quill moves across parchment...</p>
+              
+              <div className="space-y-4">
+                <div className="flex justify-between text-sm text-leather/60 mb-2">
+                  <span>Progress</span>
+                  <span>{Math.round(writingProgress)}%</span>
+                </div>
+                <div className="w-full bg-sepia rounded-full h-3 overflow-hidden border border-gold/30">
+                  <div 
+                    className="h-full bg-gold rounded-full"
+                    style={{ width: `${writingProgress}%` }}
+                  />
+                </div>
+              </div>
+            </TexturedCard>
+          </div>
+        )}
+
+        {/* Preview View */}
+        {activeTab === "create" && currentView === "preview" && bookContent && (
+          <div className="bg-[#F4E8D8] px-4 md:px-12 py-12">
+            <div className="max-w-4xl mx-auto space-y-8">
+              <div className="flex items-center justify-between">
+                <VintageButton variant="secondary" onClick={resetToForm}>
+                  Create New Book
+                </VintageButton>
+              </div>
+              <BookReader 
+                book={bookContent} 
+                isLoading={false} 
+                category={category} 
+                setPageContent={setPageContent} 
+                onClose={resetToForm}
+                libraryTimer={libraryTimer}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Library Tab */}
+        {activeTab === "library" && (
+          <div className="min-h-full bg-[#5C4033]">
+            <div className="px-4 py-12">
+              <div className="max-w-7xl mx-auto">
+                <div className="text-center mb-16">
+                  <h1 className="font-playfair text-5xl font-bold text-cream mb-4 drop-shadow-md">
+                    Your Library
+                  </h1>
+                  <div className="h-1 w-24 bg-gold mx-auto rounded-full" />
+                </div>
+
                 {libraryBooks === null ? (
-                  <div className="flex flex-col items-center justify-center py-16 text-blue-600 text-lg font-medium animate-pulse">
-                    <span className="mb-2">Loading your library...</span>
-                    <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+                  <div className="flex flex-col items-center justify-center py-16 text-cream">
+                    <span className="mb-4 font-merriweather">Loading your collection...</span>
+                    <div className="w-8 h-8 border-4 border-gold/30 border-t-gold rounded-full animate-spin" />
                   </div>
                 ) : libraryBooks.length === 0 ? (
-                  <Card className="p-12 text-center bg-white border-gray-200">
-                    <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                      <FileText className="w-8 h-8 text-blue-600" />
-                    </div>
-                    <h3 className="text-xl font-bold text-gray-800 mb-3">Your Library is Empty</h3>
-                    <p className="text-gray-600 mb-6">
-                      Create and save books to build your personal library.
-                    </p>
-                    <Button 
-                      onClick={() => setActiveTab("create")}
-                      className="bg-blue-600 hover:bg-blue-700"
-                    >
-                      <Wand2 className="w-4 h-4 mr-2" />
-                      Create a Book
-                    </Button>
-                  </Card>
+                  <div className="flex justify-center">
+                    <TexturedCard className="max-w-md text-center">
+                      <div className="w-16 h-16 bg-leather rounded-2xl flex items-center justify-center mx-auto mb-6">
+                        <FileText className="w-8 h-8 text-cream" />
+                      </div>
+                      <h3 className="font-playfair text-xl font-bold text-ink mb-3">Your Library is Empty</h3>
+                      <p className="text-leather/70 mb-6">
+                        Create and save books to build your personal collection.
+                      </p>
+                      <VintageButton onClick={() => setActiveTab("create")}>
+                        <Feather className="w-4 h-4" />
+                        Write a Book
+                      </VintageButton>
+                    </TexturedCard>
+                  </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {libraryBooks.map((book: any) => (
-                      <Card key={book.id} className="overflow-hidden border-gray-200 hover:shadow-md transition-all duration-300 w-48">
-                        <div className="relative w-full" style={{ aspectRatio: '2/3', minHeight: 216, background: 'linear-gradient(135deg, #e0e7ff 0%, #f0f4ff 100%)', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
-                          {book.cover_image_url ? (
-                            <img
-                              src={book.cover_image_url}
-                              alt={book.book_title || book.book_data?.title || "Book cover"}
-                              className="object-contain h-full w-full rounded-md shadow-lg border border-gray-200"
-                              style={{ maxHeight: '100%', maxWidth: '100%', background: '#fff', margin: '0 auto', display: 'block' }}
-                            />
-                          ) : (
-                            <div className="flex items-center justify-center h-full w-full text-gray-300 text-5xl">
-                              <BookOpen className="w-12 h-12" />
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pb-12">
+                    {libraryBooks.map((book: any) => {
+                      const coverImageUrl = book.cover_image_url;
+                      const coverPage = book.book_data?.cover_page || 
+                                       book.book_data?.coverPage || 
+                                       book.book_data?.pages?.[0];
+                      
+                      return (
+                        <TexturedCard key={book.id} className="p-6">
+                          <div className="flex items-start gap-5 mb-6">
+                            {coverImageUrl ? (
+                              <div 
+                                className="flex-shrink-0 w-32 h-40 rounded-md bg-cover bg-center relative overflow-hidden"
+                                style={{ 
+                                  backgroundImage: `url(${coverImageUrl})`,
+                                }}
+                              />
+                            ) : coverPage ? (
+                              <div 
+                                className="flex-shrink-0 w-32 h-40 rounded-md overflow-hidden relative"
+                                style={{
+                                  backgroundImage: coverPage.backgroundImage || 'linear-gradient(135deg, #5D4037 0%, #3E2723 100%)',
+                                  backgroundSize: 'cover',
+                                  backgroundPosition: 'center',
+                                }}
+                              >
+                                <div className="absolute inset-0 flex flex-col items-center justify-center p-3 text-center">
+                                  <h3 
+                                    className="font-playfair text-sm font-bold mb-1"
+                                    style={{ color: coverPage.titleColor || '#F4E8D8' }}
+                                  >
+                                    {coverPage.title || book.book_title || book.book_data?.title || "Untitled"}
+                                  </h3>
+                                  {(coverPage.author || book.book_data?.author) && (
+                                    <p 
+                                      className="font-merriweather text-[10px] mt-auto"
+                                      style={{ color: coverPage.authorColor || '#F4E8D8' }}
+                                    >
+                                      {coverPage.author || book.book_data?.author}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex-shrink-0 w-32 h-40 bg-leather rounded-md flex items-center justify-center">
+                                <Book className="w-16 h-16 text-cream" />
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-playfair text-2xl font-bold text-ink mb-2 truncate">
+                                {book.book_title || book.book_data?.title || "Untitled"}
+                              </h3>
+                              <p className="text-base text-leather/70 mb-2">
+                                by {book.book_data?.author || "Unknown Author"}
+                              </p>
+                              <p className="text-sm text-leather/60">
+                                {new Date(book.created_at).toLocaleDateString()}
+                              </p>
                             </div>
-                          )}
-                        </div>
-                        <div className="p-4 bg-gradient-to-br from-blue-50 to-blue-100 border-b border-gray-200">
-                          <h3 className="text-base font-bold text-gray-900 line-clamp-2 mb-2">
-                            {book.book_title || book.book_data?.title || "Untitled Book"}
-                          </h3>
-                          <div className="text-xs text-gray-500">
-                            {new Date(book.created_at).toLocaleDateString()}
                           </div>
-                        </div>
-                        <div className="p-3 bg-white flex justify-between">
-                          <Button 
-                            onClick={() => loadBookFromLibrary(book)}
-                            {...accentOutlineButtonProps}
-                            className="text-purple-600 border-purple-200 hover:bg-purple-50"
-                          >
-                            <BookOpen className="w-4 h-4 mr-1" />
-                            Read
-                          </Button>
-                          <Button 
-                            onClick={() => { setBookToDelete(book); setShowDeleteDialog(true); }}
-                            {...accentOutlineButtonProps}
-                            className="text-red-600 border-red-200 hover:bg-red-50"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                            <span className="sr-only">Delete</span>
-                          </Button>
-                        </div>
-                      </Card>
-                    ))}
+                          
+                          <div className="flex gap-3">
+                            <VintageButton
+                              onClick={() => loadBookFromLibrary(book)}
+                              className="flex-1"
+                            >
+                              <BookOpen className="w-4 h-4" />
+                              Read
+                            </VintageButton>
+                            <VintageButton
+                              variant="secondary"
+                              onClick={() => {
+                                setBookToDelete(book);
+                                setShowDeleteDialog(true);
+                              }}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </VintageButton>
+                          </div>
+                        </TexturedCard>
+                      );
+                    })}
                   </div>
                 )}
               </div>
-            )}
-
-
+            </div>
           </div>
-        </main>
-      </div>
-      {showDeleteDialog && (
-        <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-          <DialogContent className="max-w-sm">
-            <DialogHeader>
-              <DialogTitle>Remove Book?</DialogTitle>
-              <DialogDescription>
-                Are you sure you want to remove <span className="font-semibold">{bookToDelete?.book_title || bookToDelete?.book_data?.title || "this book"}</span> from your library? This action cannot be undone.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="flex gap-2 justify-end mt-4">
-              <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
-                Cancel
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={async () => {
-                  if (bookToDelete) {
-                    await deleteBookFromLibrary(bookToDelete.id, !user);
+        )}
+      </main>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent className="bg-cream border-2 border-gold/30 max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-playfair text-2xl text-ink">Delete Book</DialogTitle>
+            <DialogDescription className="font-merriweather text-leather/70">
+              Are you sure you want to delete &quot;{bookToDelete?.book_title || bookToDelete?.book_data?.title || 'this book'}&quot;? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-3 mt-4">
+            <VintageButton
+              variant="secondary"
+              onClick={() => {
+                setShowDeleteDialog(false);
+                setBookToDelete(null);
+              }}
+              className="flex-1"
+            >
+              Cancel
+            </VintageButton>
+            <VintageButton
+              onClick={async () => {
+                if (!bookToDelete) return;
+                
+                setIsDeleting(true);
+                try {
+                  const token = (await getToken({ template: 'supabase' }).catch(() => undefined)) ||
+                                (await getToken().catch(() => undefined)) ||
+                                undefined;
+                  
+                  if (!token) {
+                    toast({
+                      variant: "destructive",
+                      title: "Error",
+                      description: "Authentication failed",
+                    });
+                    return;
                   }
+
+                  const supabase = getSupabaseClient(token);
+                  const { error } = await supabase
+                    .from("book_generations")
+                    .delete()
+                    .eq("id", bookToDelete.id);
+
+                  if (error) throw error;
+
+                  toast({
+                    title: "Success",
+                    description: "Book deleted successfully",
+                  });
+                  
+                  loadLibraryBooks();
+                } catch (error) {
+                  console.error("Error deleting book:", error);
+                  toast({
+                    variant: "destructive",
+                    title: "Error",
+                    description: "Failed to delete book",
+                  });
+                } finally {
+                  setIsDeleting(false);
                   setShowDeleteDialog(false);
                   setBookToDelete(null);
-                }}
-              >
-                Remove
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
-      {showAddDialog && (
-        <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-          <DialogContent className="max-w-sm">
-            <DialogHeader>
-              <DialogTitle>Add to Library</DialogTitle>
-              <DialogDescription>
-                Would you like to add <span className="font-semibold">{bookContent?.title || "this book"}</span> to your personal library?
-              </DialogDescription>
-            </DialogHeader>
-            <div className="flex gap-2 justify-end mt-4">
-              <Button variant="outline" onClick={() => setShowAddDialog(false)}>
-                Cancel
-              </Button>
-              <Button
-                onClick={async () => {
-                  setIsSavingToLibrary(true);
-                  await saveBookToLibrary();
-                  setIsSavingToLibrary(false);
-                  setShowAddDialog(false);
-                }}
-                disabled={isSavingToLibrary}
-              >
-                {isSavingToLibrary ? "Saving..." : "Add to Library"}
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
+                }
+              }}
+              disabled={isDeleting}
+              className="flex-1 bg-red-700 hover:bg-red-800 border-red-800"
+            >
+              {isDeleting ? "Deleting..." : "Delete"}
+            </VintageButton>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
-} 
+}

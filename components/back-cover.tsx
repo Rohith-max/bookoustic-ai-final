@@ -36,14 +36,14 @@ export default function BackCover({ book, category }: BackCoverProps) {
         >
           About this Book
         </h2>
-        {/* Thin gold divider */}
+        
         <div style={{ width: '100%', maxWidth: 340, borderTop: `1px solid ${gold}33`, margin: '0 0 1.5rem 0' }} />
-        {/* Back cover blurb */}
+       
         <div className="mb-4 text-base leading-relaxed text-center" style={{ fontFamily: `"${font.body}", serif`, color: gold, overflowWrap: 'anywhere' }}>
           {book.backCoverText}
         </div>
       </div>
-      {/* Footer */}
+      
       <div className="flex flex-col items-center justify-end w-full pb-2" style={{ minHeight: 0 }}>
         <span className="text-xs" style={{ color: gold, fontFamily: `"${font.body}", serif`, overflowWrap: 'anywhere' }}>
           A Bookoustic Publication
