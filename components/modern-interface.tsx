@@ -456,6 +456,9 @@ export default function ModernInterface() {
                     style={{ width: `${writingProgress}%` }}
                   />
                 </div>
+                <p className="text-sm text-leather/70 bg-gold/10 border border-gold/30 rounded-md px-4 py-3">
+                  Please note: this software uses a rate-limited API, so generations can take a while. A local model setup is currently under development.
+                </p>
               </div>
             </TexturedCard>
           </div>
